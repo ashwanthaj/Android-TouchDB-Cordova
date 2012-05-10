@@ -15,15 +15,37 @@
  */
 package com.couchbase.callback;
 
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.Properties;
 
+import android.app.ProgressDialog;
+import android.content.Context;
 import android.content.ServiceConnection;
 import android.content.res.AssetManager;
+import android.content.res.Resources;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.Toast;
 
-import com.couchbase.android.CouchbaseMobile;
-import com.couchbase.android.ICouchbaseDelegate;
+import com.couchbase.touchdb.TDServer;
+import com.couchbase.touchdb.TDView;
+import com.couchbase.touchdb.javascript.TDJavaScriptViewCompiler;
+import com.couchbase.touchdb.listener.TDListener;
+
 import org.apache.cordova.*;
 
 /**
@@ -37,9 +59,12 @@ public class AndroidCouchbaseCallback extends DroidGap
     public static final String COUCHBASE_DATABASE_SUFFIX = ".couch";
     public static final String WELCOME_DATABASE = "welcome";
     public static final String DEFAULT_ATTACHMENT = "/index.html";
-    private CouchbaseMobile couchbaseMobile;
     private ServiceConnection couchbaseService;
     private String couchappDatabase;
+    private TDListener listener;
+    private ProgressDialog progressDialog;
+    private Handler uiHandler;
+    static Handler myHandler;
 
     protected boolean installWelcomeDatabase() {
         return true;
@@ -88,13 +113,39 @@ public class AndroidCouchbaseCallback extends DroidGap
             // NOTE: Callback won't show the splash until we try to load a URL
             //       so we start a load, with a wait time we should never exceed
             setIntegerProperty("splashscreen", getSplashScreenDrawable());
-            loadUrl("file:///android_asset/www/error.html", 30000);
+            //loadUrl("file:///android_asset/www/error.html", 60000);
         }
 
         // increase the default timeout
-        super.setIntegerProperty("loadUrlTimeoutValue", 60000);
+        super.setIntegerProperty("loadUrlTimeoutValue", 90000);
+        
+        String filesDir = getFilesDir().getAbsolutePath();
 
-        couchbaseMobile = new CouchbaseMobile(getBaseContext(), couchCallbackHandler);
+        Properties properties = new Properties();
+
+        try {
+        	InputStream rawResource = getResources().openRawResource(R.raw.coconut);
+        	properties.load(rawResource);
+        } catch (Resources.NotFoundException e) {
+        	System.err.println("Did not find raw resource: " + e);
+        } catch (IOException e) {
+        	System.err.println("Failed to open microlog property file");
+        }
+        
+        TDServer server;
+        try {
+            server = new TDServer(filesDir);
+            
+            listener = new TDListener(server, 8888);
+            listener.start();
+            
+            TDView.setCompiler(new TDJavaScriptViewCompiler());
+
+        } catch (IOException e) {
+            Log.e(TAG, "Unable to create TDServer", e);
+        }
+        
+        /*couchbaseMobile = new CouchbaseMobile(getBaseContext(), couchCallbackHandler);
         try {
             if(installWelcomeDatabase()) {
                 couchbaseMobile.installDatabase(WELCOME_DATABASE + COUCHBASE_DATABASE_SUFFIX);
@@ -108,10 +159,48 @@ public class AndroidCouchbaseCallback extends DroidGap
             }
         } catch (IOException e) {
             Log.e(TAG, "Error installing database", e);
-        }
+        }*/
 
         // start couchbase
-        couchbaseService = couchbaseMobile.startCouchbase();
+        //couchbaseService = couchbaseMobile.startCouchbase();
+        String ipAddress = "0.0.0.0";
+        Log.d(TAG, ipAddress);
+		String host = ipAddress;
+		int port = 8888;
+		String url = "http://" + host + ":" + Integer.toString(port) + "/";
+		
+        uiHandler = new Handler();
+        String appDb = properties.getProperty("app_db");
+	    File destination = new File(filesDir + File.separator + appDb + ".touchdb");
+	    String couchAppUrl = url + properties.getProperty("couchAppInstanceUrl");
+	    Log.d(TAG, "Checking for touchdb at " + filesDir + File.separator + appDb + ".touchdb");
+	    if (!destination.exists()) {
+	    	Log.d(TAG, "Touchdb does not exist. Unzipping files.");
+	    	// must be in the assets directory
+	    	try {
+	    		// This is the touchdb
+	        	String destinationFilename = extractFromAssets(this.getApplicationContext(), appDb + ".touchdb", filesDir);	
+	        	File destFile = new File(destinationFilename);
+	    		// These are the attachments
+	    		destinationFilename = extractFromAssets(this.getApplicationContext(), appDb + ".zip", filesDir);	
+	        	destFile = new File(destinationFilename);
+	    		unzipFile(destFile);
+                //loadWebview();
+	    		AndroidCouchbaseCallback.this.loadUrl(couchAppUrl);
+			} catch (Exception e) {
+				e.printStackTrace();
+				String errorMessage = "There was an error extracting the database.";
+				displayLargeMessage(errorMessage, "big");
+				Log.d(TAG, errorMessage);
+				progressDialog.setMessage(errorMessage);
+				//this.setCouchAppUrl("/");
+				AndroidCouchbaseCallback.this.loadUrl(url);
+			}
+	    } else {
+	    	Log.d(TAG, "Touchdb exists. Loading WebView.");
+	    	//loadWebview();
+	    	AndroidCouchbaseCallback.this.loadUrl(couchAppUrl);
+	    }
     }
 
     /**
@@ -144,40 +233,113 @@ public class AndroidCouchbaseCallback extends DroidGap
     /**
      * Clean up the Couchbase service
      */
-    @Override
-    public void onDestroy() {
+    //@Override
+   /* public void onDestroy() {
         if(couchbaseService != null) {
             unbindService(couchbaseService);
         }
         super.onDestroy();
-    }
+    }*/
+    
+    public static String extractFromAssets(Context ctx, String file, String destinationDirectory) throws IOException, FileNotFoundException {
+		final int BUFFER = 2048;
+    	BufferedOutputStream dest = null;
+    	AssetManager assetManager = ctx.getAssets();
+    	InputStream in = assetManager.open(file);	
+    	String destinationFilename = destinationDirectory + File.separator + file;
+		OutputStream out = new FileOutputStream(destinationFilename);
+		byte[] buffer = new byte[1024];
+		int read;
+		while((read = in.read(buffer)) != -1){
+			out.write(buffer, 0, read);
+		}
+		in.close();
+		out.close();
+		return destinationFilename;
+	}
+    
+    public void displayLargeMessage( String message, String size ) {
+		LayoutInflater inflater = getLayoutInflater();
+		View layout = null;
+		if (size.equals("big")) {
+			layout = inflater.inflate(R.layout.toast_layout_large,(ViewGroup) findViewById(R.id.toast_layout_large));
+		} else {
+			layout = inflater.inflate(R.layout.toast_layout_medium,(ViewGroup) findViewById(R.id.toast_layout_large));
+		}
+		
+		ImageView image = (ImageView) layout.findViewById(R.id.image);
+		image.setImageResource(R.drawable.android);
+		TextView text = (TextView) layout.findViewById(R.id.text);
+		text.setText(message);
+		//uiHandler.post( new ToastMessage( this, message ) );
+		/*Toast toast = new Toast(getApplicationContext());
+		toast.setGravity(Gravity.CENTER_VERTICAL, 0, 0);
+		toast.setDuration(Toast.LENGTH_LONG);
+		toast.setView(layout);*/
+		uiHandler.post( new ToastMessageBig( this, message, layout ) );
+		//toast.show();
+	}
+    
+    public void unzipFile(File zipfile) {
+		//installProgress = ProgressDialog.show(CoconutActivity.this, "Extract Zip","Extracting Files...", false, false);
+		File zipFile = zipfile;
+		displayLargeMessage("Extracting: " + zipfile, "medium");
+		String directory = null;
+		directory = zipFile.getParent();
+		directory = directory + "/";
+		myHandler = new Handler() {
 
-    /**
-     * Implementation of the ICouchbaseDelegat inerface
-     */
-    private final ICouchbaseDelegate couchCallbackHandler = new ICouchbaseDelegate() {
+			@Override
+			public void handleMessage(Message msg) {
+				// process incoming messages here
+				switch (msg.what) {
+				case 0:
+					// update progress bar
+					//installProgress.setMessage("" + (String) msg.obj);
+					Log.d(TAG,  (String) msg.obj);
+					break;
+				case 1:
+					//installProgress.cancel();
+					//Toast toast = Toast.makeText(getApplicationContext(), "Zip extracted successfully", Toast.LENGTH_SHORT);
+					displayLargeMessage(msg.obj + ": Complete.", "medium");
+					//toast.show();
+					//provider.refresh();
+					Log.d(TAG, msg.obj + ":Zip extracted successfully");
+					break;
+				case 2:
+					//installProgress.cancel();
+					break;
+				}
+				super.handleMessage(msg);
+			}
 
-        /**
-         * Once Couchbase has started, load the couchapp, or the instructions if no couchapp is present
-         */
-        @Override
-        public void couchbaseStarted(String host, int port) {
-            if(showSplashScreen()) {
-                //stop the load that we started to display the splash screen
-                cancelLoadUrl();
-            }
-            if(couchappDatabase != null) {
-                AndroidCouchbaseCallback.this.loadUrl(getCouchAppURL(host, port));
-            }
-            else {
-                AndroidCouchbaseCallback.this.loadUrl(getWelcomeAppURL(host, port));
-            }
+		};
+		/*Thread workthread = new Thread(new UnZip(myHandler, zipFile, directory));
+	    workthread.start();*/
+		UnZip unzip = new UnZip(myHandler, zipFile, directory);
+		unzip.run();
+		Log.d(TAG, "Completed extraction.");
+	} 
+}
 
-            AndroidCouchbaseCallback.this.couchbaseStarted(host, port);
-        }
-
-        @Override
-        public void exit(String error) {}
-    };
+class ToastMessageBig implements Runnable {
+	View layout;
+	Context ctx;
+	String msg;
+	
+	public ToastMessageBig( Context ctx, String msg, View layout ) {
+		this.ctx = ctx;
+		this.msg = msg;
+		this.layout = layout;
+	}
+	
+	public void run() {
+		//Toast.makeText( ctx, msg, Toast.LENGTH_SHORT).show();
+		Toast toast = new Toast(ctx);
+		toast.setGravity(Gravity.CENTER_VERTICAL, 0, 0);
+		toast.setDuration(Toast.LENGTH_LONG);
+		toast.setView(layout);
+		toast.show();
+	}
 }
 

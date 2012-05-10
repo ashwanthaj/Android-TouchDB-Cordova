@@ -31,24 +31,29 @@ These instructions are divided into two sections, the first describes the develo
 
 6.  Forward the Couchbase Mobile from the device to your development machine (the Couchbase port is dynamic and is shown on the screen)
 
-    adb forward tcp:8984 tcp:&lt;value displayed on your screen&gt;
-
+    adb forward tcp:8990 tcp:8888   
+     
 7.  From within your CouchApp project directory, run the following command to install your couchapp on the device.
 
-    couchapp push . http://localhost:8984/couchapp
+    couchapp push . http://localhost:8990/couchabb	
 
 8.  Refresh the list of CouchApps and navigate to your applicaiton
 
 ### Distribution
 
-1.  Compact your database
 
-    curl -X POST -H "Content-Type: application/json"  http://localhost:8984/couchapp/_compact
+1.  Copy the database off the device and into this Android application's assets directory:
 
-2.  Copy the database off the device and into this Android application's assets directory:
+	adb pull /data/data/org.rti.rcd.ict.touchdb.testapp/files
+	
+2.  Zip the directory, named your_couchapp, which has your touchdb attachments to create your_couchapp.zip. 
+    The pull may have copied some un-necessary files you may wish to delete. 
+    
+3. Edit res/raw/coconut.properties and change coconut-sample to the name of your couchapp and adjust the couchAppInstanceUrl. Note that you can also change the port in this file.
 
-    adb pull /mnt/sdcard/Android/data/com.couchbase.callback/db/couchapp.couch assets
-
+    app_db=coconut-sample
+    couchAppInstanceUrl=coconut-sample/_design/coconut/index.html    
+	
 3.  Repackage your application with the database file included
 
     ant debug
