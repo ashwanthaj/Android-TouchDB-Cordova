@@ -1,14 +1,27 @@
 ## Android Couchbase Callback
 
-This application provides the fastest way to deploy a <a href="http://couchapp.org/">CouchApp</a> to an Android device using <a href="http://couchbase.org/">Couchbase Mobile</a> and <a href="http://incubator.apache.org/projects/callback.html">Apache Callback (formerly PhoneGap)</a>.
+This app is a demonstration of the [TodoMVC backbone-require](https://github.com/addyosmani/todomvc/tree/master/dependency-examples/backbone_require) 
+app, which has been modified to work as a [Backbone boilerplate](https://github.com/tbranyen/backbone-boilerplate) project. 
+It is based upon [Android-Couchbase-Callback] (https://github.com/couchbaselabs/Android-Couchbase-Callback).
+
+The [TodoMVC](https://github.com/addyosmani/todomvc) project serves as a demonstration of popular javascript MV* frameworks. 
+I am using TodoMVC as a generic project to help assess TouchDB-Android performance.
+ 
+You may also use this app to deploy a <a href="http://couchapp.org/">CouchApp</a> to an Android device 
+using <a href="https://github.com/couchbaselabs/TouchDB-Android">TouchDB-Android</a> and 
+<a href="http://incubator.apache.org/projects/callback.html">Apache Cordova (formerly PhoneGap)</a>.
 
 ## Requirements
 
-This project requires the latest version of the Android SDK. If you already have the SDK tools, you can upgrade by running `android update sdk`, if you don't have them, you can [install via this link](http://developer.android.com/sdk/installing.html)
+This project requires the latest version of the Android SDK. If you already have the SDK tools, 
+you can upgrade by running `android update sdk`, if you don't have them, you can 
+[install via this link](http://developer.android.com/sdk/installing.html)
 
 ## Getting Started
 
-These instructions are divided into two sections, the first describes the development mode.  In this mode you can continually couchapp push your changes in for test.  The second describes distribution mode where you package your application for distribution.
+These instructions are divided into two sections, the first describes the development mode.  
+In this mode you can continually couchapp push your changes in for test.  T
+he second describes distribution mode where you package your application for distribution.
 
 ### Development
 
@@ -27,7 +40,7 @@ These instructions are divided into two sections, the first describes the develo
 
     adb shell am start -n com.couchbase.callback/.AndroidCouchbaseCallback
 
-5.  Couchbase Mobile is now running, you should see now see instructions on screen install your CouchApp.
+5.  TouchDB is now running. The [TodoMVC](https://github.com/addyosmani/todomvc) app will display.
 
 6.  Forward the Couchbase Mobile from the device to your development machine (the Couchbase port is dynamic and is shown on the screen)
 
