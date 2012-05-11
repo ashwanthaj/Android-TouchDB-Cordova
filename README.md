@@ -5,7 +5,7 @@ app, which has been modified to work as a [Backbone boilerplate](https://github.
 It is based upon [Android-Couchbase-Callback] (https://github.com/couchbaselabs/Android-Couchbase-Callback).
 
 The [TodoMVC](https://github.com/addyosmani/todomvc) project serves as a demonstration of popular javascript MV* frameworks. 
-I am using TodoMVC as a generic project to help assess TouchDB-Android performance.
+I am using TodoMVC as a generic project called [couchabb](https://github.com/chrisekelley/couchabb) to help assess TouchDB-Android performance. 
  
 You may also use this app to deploy a <a href="http://couchapp.org/">CouchApp</a> to an Android device 
 using <a href="https://github.com/couchbaselabs/TouchDB-Android">TouchDB-Android</a> and 
@@ -40,7 +40,9 @@ he second describes distribution mode where you package your application for dis
 
     adb shell am start -n com.couchbase.callback/.AndroidCouchbaseCallback
 
-5.  TouchDB is now running. The [TodoMVC](https://github.com/addyosmani/todomvc) app will display.
+5.  TouchDB is now running. The [TodoMVC](https://github.com/addyosmani/todomvc) app will display. Sometimes the app will not display; check for the following message:
+    05-11 17:36:00.251: D/CordovaLog(2647): Error: Load timeout for modules: use 
+This issue happens in Android 2.2 emulator; Android 2.3 works fine. You should be able to view the app after setting up adb below at via http://localhost:8990/couchabb/_design/couchabb/index.html
 
 6.  Forward the Couchbase Mobile from the device to your development machine (the Couchbase port is dynamic and is shown on the screen)
 
@@ -49,18 +51,20 @@ he second describes distribution mode where you package your application for dis
 7.  From within your CouchApp project directory, run the following command to install your couchapp on the device.
 
     couchapp push . http://localhost:8990/couchabb	
-
-8.  Refresh the list of CouchApps and navigate to your applicaiton
+        
 
 ### Distribution
 
 
-1.  Copy the database off the device and into this Android application's assets directory:
+1.  Copy the database off the device and into this Android application's assets directory. To keep the filesystem clean, first create a directory named your_couchapp in your project assets dir. In the console, cd to that directory. Run the following commmand:
 
-	adb pull /data/data/org.rti.rcd.ict.touchdb.testapp/files
+	adb pull /data/data/com.couchbase.callback/files/your_couchapp
 	
-2.  Zip the directory, named your_couchapp, which has your touchdb attachments to create your_couchapp.zip. 
-    The pull may have copied some un-necessary files you may wish to delete. 
+This should have put and attachments directory in that directory. Now cd up one directory (to your assets dir) and run the following command:
+	
+	adb pull /data/data/com.couchbase.callback/files/your_couchapp.touchdb
+	
+2.  Zip the directory, named your_couchapp, which has your touchdb attachments to create your_couchapp.zip. Delete the your_couchapp directory.
     
 3. Edit res/raw/coconut.properties and change coconut-sample to the name of your couchapp and adjust the couchAppInstanceUrl. Note that you can also change the port in this file.
 
