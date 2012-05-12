@@ -180,10 +180,9 @@ public class AndroidCouchbaseCallback extends DroidGap
 	    	try {
 	    		// This is the touchdb
 	        	String destinationFilename = extractFromAssets(this.getApplicationContext(), appDb + ".touchdb", filesDir);	
-	        	File destFile = new File(destinationFilename);
 	    		// These are the attachments
 	    		destinationFilename = extractFromAssets(this.getApplicationContext(), appDb + ".zip", filesDir);	
-	        	destFile = new File(destinationFilename);
+	        	File destFile = new File(destinationFilename);
 	    		unzipFile(destFile);
                 //loadWebview();
 	    		AndroidCouchbaseCallback.this.loadUrl(couchAppUrl);
