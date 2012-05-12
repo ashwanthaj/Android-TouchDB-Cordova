@@ -60,11 +60,11 @@ This issue happens in Android 2.2 emulator; Android 2.3 works fine. You should b
 
 	adb pull /data/data/com.couchbase.callback/files/your_couchapp
 	
-This should have put and attachments directory in that directory. Now cd up one directory (to your assets dir) and run the following command:
+This should have put an attachments directory in that directory. 
+
+2. Now cd up one directory (to your assets dir) and run the following command:
 	
 	adb pull /data/data/com.couchbase.callback/files/your_couchapp.touchdb
-	
-2.  Zip the directory, named your_couchapp, which has your touchdb attachments to create your_couchapp.zip. Delete the your_couchapp directory.
     
 3. Edit res/raw/coconut.properties and change coconut-sample to the name of your couchapp and adjust the couchAppInstanceUrl. Note that you can also change the port in this file.
 

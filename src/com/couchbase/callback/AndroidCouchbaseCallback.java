@@ -41,6 +41,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.couchbase.touchdb.TDDatabase;
 import com.couchbase.touchdb.TDServer;
 import com.couchbase.touchdb.TDView;
 import com.couchbase.touchdb.javascript.TDJavaScriptViewCompiler;
@@ -57,6 +58,7 @@ public class AndroidCouchbaseCallback extends DroidGap
 {
     public static final String TAG = AndroidCouchbaseCallback.class.getName();
     public static final String COUCHBASE_DATABASE_SUFFIX = ".couch";
+    public static final String TOUCHDB_DATABASE_SUFFIX = ".touchdb";
     public static final String WELCOME_DATABASE = "welcome";
     public static final String DEFAULT_ATTACHMENT = "/index.html";
     private ServiceConnection couchbaseService;
@@ -132,7 +134,7 @@ public class AndroidCouchbaseCallback extends DroidGap
         	System.err.println("Failed to open microlog property file");
         }
         
-        TDServer server;
+        TDServer server = null;
         try {
             server = new TDServer(filesDir);
             
@@ -144,22 +146,6 @@ public class AndroidCouchbaseCallback extends DroidGap
         } catch (IOException e) {
             Log.e(TAG, "Unable to create TDServer", e);
         }
-        
-        /*couchbaseMobile = new CouchbaseMobile(getBaseContext(), couchCallbackHandler);
-        try {
-            if(installWelcomeDatabase()) {
-                couchbaseMobile.installDatabase(WELCOME_DATABASE + COUCHBASE_DATABASE_SUFFIX);
-            }
-
-            // look for a .couch file in the assets folder
-            couchappDatabase = getDatabaseName();
-            if(couchappDatabase != null) {
-                // if we found one, install it
-                couchbaseMobile.installDatabase(couchappDatabase + COUCHBASE_DATABASE_SUFFIX);
-            }
-        } catch (IOException e) {
-            Log.e(TAG, "Error installing database", e);
-        }*/
 
         // start couchbase
         //couchbaseService = couchbaseMobile.startCouchbase();
@@ -171,20 +157,19 @@ public class AndroidCouchbaseCallback extends DroidGap
 		
         uiHandler = new Handler();
         String appDb = properties.getProperty("app_db");
-	    File destination = new File(filesDir + File.separator + appDb + ".touchdb");
+	    File destination = new File(filesDir + File.separator + appDb + TOUCHDB_DATABASE_SUFFIX);
 	    String couchAppUrl = url + properties.getProperty("couchAppInstanceUrl");
-	    Log.d(TAG, "Checking for touchdb at " + filesDir + File.separator + appDb + ".touchdb");
+	    //TDDatabase db = server.getDatabaseNamed(appDb);
+	    Log.d(TAG, "Checking for touchdb at " + filesDir + File.separator + appDb + TOUCHDB_DATABASE_SUFFIX);
 	    if (!destination.exists()) {
-	    	Log.d(TAG, "Touchdb does not exist. Unzipping files.");
+	    	Log.d(TAG, "Touchdb does not exist. Installing.");
 	    	// must be in the assets directory
 	    	try {
+	    		//db.replaceWithDatabase(appDb + TOUCHDB_DATABASE_SUFFIX, appDb);
 	    		// This is the touchdb
-	        	String destinationFilename = extractFromAssets(this.getApplicationContext(), appDb + ".touchdb", filesDir);	
+	        	this.copyFileOrDir(appDb + TOUCHDB_DATABASE_SUFFIX, filesDir);
 	    		// These are the attachments
-	    		destinationFilename = extractFromAssets(this.getApplicationContext(), appDb + ".zip", filesDir);	
-	        	File destFile = new File(destinationFilename);
-	    		unzipFile(destFile);
-                //loadWebview();
+	        	this.copyFileOrDir(appDb, filesDir);
 	    		AndroidCouchbaseCallback.this.loadUrl(couchAppUrl);
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -240,23 +225,6 @@ public class AndroidCouchbaseCallback extends DroidGap
         super.onDestroy();
     }*/
     
-    public static String extractFromAssets(Context ctx, String file, String destinationDirectory) throws IOException, FileNotFoundException {
-		final int BUFFER = 2048;
-    	BufferedOutputStream dest = null;
-    	AssetManager assetManager = ctx.getAssets();
-    	InputStream in = assetManager.open(file);	
-    	String destinationFilename = destinationDirectory + File.separator + file;
-		OutputStream out = new FileOutputStream(destinationFilename);
-		byte[] buffer = new byte[1024];
-		int read;
-		while((read = in.read(buffer)) != -1){
-			out.write(buffer, 0, read);
-		}
-		in.close();
-		out.close();
-		return destinationFilename;
-	}
-    
     public void displayLargeMessage( String message, String size ) {
 		LayoutInflater inflater = getLayoutInflater();
 		View layout = null;
@@ -279,46 +247,57 @@ public class AndroidCouchbaseCallback extends DroidGap
 		//toast.show();
 	}
     
-    public void unzipFile(File zipfile) {
-		//installProgress = ProgressDialog.show(CoconutActivity.this, "Extract Zip","Extracting Files...", false, false);
-		File zipFile = zipfile;
-		displayLargeMessage("Extracting: " + zipfile, "medium");
-		String directory = null;
-		directory = zipFile.getParent();
-		directory = directory + "/";
-		myHandler = new Handler() {
+    /**
+     * kudos: http://stackoverflow.com/a/4530294
+     * @param path
+     * @param destination
+     */
+    private void copyFileOrDir(String path, String destination) {
+        AssetManager assetManager = this.getAssets();
+        String assets[] = null;
+        try {
+            assets = assetManager.list(path);
+            if (assets.length == 0) {
+                copyFile(path, destination);
+            } else {
+                String fullPath = destination + "/" + path;
+                File dir = new File(fullPath);
+                if (!dir.exists())
+                    dir.mkdir();
+                for (int i = 0; i < assets.length; ++i) {
+                    copyFileOrDir(path + File.separator + assets[i], destination);
+                }
+            }
+        } catch (IOException ex) {
+            Log.e("tag", "I/O Exception", ex);
+        }
+    }
 
-			@Override
-			public void handleMessage(Message msg) {
-				// process incoming messages here
-				switch (msg.what) {
-				case 0:
-					// update progress bar
-					//installProgress.setMessage("" + (String) msg.obj);
-					Log.d(TAG,  (String) msg.obj);
-					break;
-				case 1:
-					//installProgress.cancel();
-					//Toast toast = Toast.makeText(getApplicationContext(), "Zip extracted successfully", Toast.LENGTH_SHORT);
-					displayLargeMessage(msg.obj + ": Complete.", "medium");
-					//toast.show();
-					//provider.refresh();
-					Log.d(TAG, msg.obj + ":Zip extracted successfully");
-					break;
-				case 2:
-					//installProgress.cancel();
-					break;
-				}
-				super.handleMessage(msg);
-			}
+    private void copyFile(String filename, String destination) {
+        AssetManager assetManager = this.getAssets();
 
-		};
-		/*Thread workthread = new Thread(new UnZip(myHandler, zipFile, directory));
-	    workthread.start();*/
-		UnZip unzip = new UnZip(myHandler, zipFile, directory);
-		unzip.run();
-		Log.d(TAG, "Completed extraction.");
-	} 
+        InputStream in = null;
+        OutputStream out = null;
+        try {
+            in = assetManager.open(filename);
+            String newFileName = destination + File.separator + filename;
+            out = new FileOutputStream(newFileName);
+
+            byte[] buffer = new byte[1024];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+            in.close();
+            in = null;
+            out.flush();
+            out.close();
+            out = null;
+        } catch (Exception e) {
+            Log.e("tag", e.getMessage());
+        }
+
+    }
 }
 
 class ToastMessageBig implements Runnable {
