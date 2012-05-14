@@ -166,10 +166,14 @@ public class AndroidCouchbaseCallback extends DroidGap
 	    	// must be in the assets directory
 	    	try {
 	    		//db.replaceWithDatabase(appDb + TOUCHDB_DATABASE_SUFFIX, appDb);
-	    		// This is the touchdb
+	    		// This is the appDb touchdb
 	        	this.copyFileOrDir(appDb + TOUCHDB_DATABASE_SUFFIX, filesDir);
-	    		// These are the attachments
+	    		// These are the appDb attachments
 	        	this.copyFileOrDir(appDb, filesDir);
+	        	// This is the mobilefuton touchdb
+	        	this.copyFileOrDir("mobilefuton" + TOUCHDB_DATABASE_SUFFIX, filesDir);
+	        	// These are the mobilefuton attachments
+	        	this.copyFileOrDir("mobilefuton", filesDir);
 	    		AndroidCouchbaseCallback.this.loadUrl(couchAppUrl);
 			} catch (Exception e) {
 				e.printStackTrace();
