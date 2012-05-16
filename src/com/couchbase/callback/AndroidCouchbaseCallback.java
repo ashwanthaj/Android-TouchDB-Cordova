@@ -15,23 +15,23 @@
  */
 package com.couchbase.callback;
 
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Properties;
+
+import org.apache.cordova.DroidGap;
 
 import android.app.ProgressDialog;
 import android.content.Context;
-import android.content.ServiceConnection;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.Message;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -46,8 +46,7 @@ import com.couchbase.touchdb.TDServer;
 import com.couchbase.touchdb.TDView;
 import com.couchbase.touchdb.javascript.TDJavaScriptViewCompiler;
 import com.couchbase.touchdb.listener.TDListener;
-
-import org.apache.cordova.*;
+import com.couchbase.touchdb.replicator.TDReplicator;
 
 /**
  * Avoid making changes to this class.  If you find the need, please
@@ -61,8 +60,6 @@ public class AndroidCouchbaseCallback extends DroidGap
     public static final String TOUCHDB_DATABASE_SUFFIX = ".touchdb";
     public static final String WELCOME_DATABASE = "welcome";
     public static final String DEFAULT_ATTACHMENT = "/index.html";
-    private ServiceConnection couchbaseService;
-    private String couchappDatabase;
     private TDListener listener;
     private ProgressDialog progressDialog;
     private Handler uiHandler;
@@ -159,6 +156,11 @@ public class AndroidCouchbaseCallback extends DroidGap
         String appDb = properties.getProperty("app_db");
 	    File destination = new File(filesDir + File.separator + appDb + TOUCHDB_DATABASE_SUFFIX);
 	    String couchAppUrl = url + properties.getProperty("couchAppInstanceUrl");
+	    String masterServer = properties.getProperty("master_server");
+	    if (masterServer != null) {
+	    	Constants.replicationURL = masterServer;
+		    Log.d(TAG, "replicationURL: " + Constants.replicationURL);
+	    }
 	    //TDDatabase db = server.getDatabaseNamed(appDb);
 	    Log.d(TAG, "Checking for touchdb at " + filesDir + File.separator + appDb + TOUCHDB_DATABASE_SUFFIX);
 	    if (!destination.exists()) {
@@ -174,7 +176,6 @@ public class AndroidCouchbaseCallback extends DroidGap
 	        	this.copyFileOrDir("mobilefuton" + TOUCHDB_DATABASE_SUFFIX, filesDir);
 	        	// These are the mobilefuton attachments
 	        	this.copyFileOrDir("mobilefuton", filesDir);
-	    		AndroidCouchbaseCallback.this.loadUrl(couchAppUrl);
 			} catch (Exception e) {
 				e.printStackTrace();
 				String errorMessage = "There was an error extracting the database.";
@@ -185,10 +186,30 @@ public class AndroidCouchbaseCallback extends DroidGap
 				AndroidCouchbaseCallback.this.loadUrl(url);
 			}
 	    } else {
-	    	Log.d(TAG, "Touchdb exists. Loading WebView.");
-	    	//loadWebview();
-	    	AndroidCouchbaseCallback.this.loadUrl(couchAppUrl);
+	    	Log.d(TAG, "Touchdb exists. Loading WebView.");	    	
 	    }
+    	// If REPLICATION_SERVER_URL is still null, don't configure C2DM or replication.	
+    	if (Constants.replicationURL != null) {
+    		try {
+				TDDatabase db = server.getDatabaseNamed(appDb);
+				db.open();
+				URL remote = null;
+				try {
+					remote = new URL(Constants.replicationURL);
+				} catch (MalformedURLException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+//				TDReplicator replPull = db.getReplicator(remote, false, true);
+//				replPull.start();
+				TDReplicator replPush = db.getReplicator(remote, true, true);
+				replPush.start();
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+    	}
+	    AndroidCouchbaseCallback.this.loadUrl(couchAppUrl);
     }
 
     /**
