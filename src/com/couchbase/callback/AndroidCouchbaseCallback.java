@@ -22,12 +22,16 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 
 import org.apache.cordova.DroidGap;
 
+import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.os.Bundle;
@@ -41,17 +45,13 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.couchbase.touchdb.TDBody;
 import com.couchbase.touchdb.TDDatabase;
 import com.couchbase.touchdb.TDServer;
 import com.couchbase.touchdb.TDView;
 import com.couchbase.touchdb.javascript.TDJavaScriptViewCompiler;
 import com.couchbase.touchdb.listener.TDListener;
 import com.couchbase.touchdb.replicator.TDReplicator;
-
-/**
- * Avoid making changes to this class.  If you find the need, please
- * make suggestions here:  https://groups.google.com/forum/#!forum/mobile-couchbase
- */
 
 public class AndroidCouchbaseCallback extends DroidGap
 {
@@ -64,6 +64,7 @@ public class AndroidCouchbaseCallback extends DroidGap
     private ProgressDialog progressDialog;
     private Handler uiHandler;
     static Handler myHandler;
+
 
     protected boolean installWelcomeDatabase() {
         return true;
@@ -158,8 +159,17 @@ public class AndroidCouchbaseCallback extends DroidGap
 	    String couchAppUrl = url + properties.getProperty("couchAppInstanceUrl");
 	    String masterServer = properties.getProperty("master_server");
 	    if (masterServer != null) {
-	    	Constants.replicationURL = masterServer;
+	    	Constants.serverURLString = masterServer;
+	    	Constants.replicationURL = masterServer + "/" + appDb;
 		    Log.d(TAG, "replicationURL: " + Constants.replicationURL);
+	    }
+	    String syncpointAppId = properties.getProperty("syncpoint_app_id");
+	    if (syncpointAppId != null) {
+	    	Constants.syncpointAppId = syncpointAppId;
+	    }
+	    String syncpointDefaultChannelName = properties.getProperty("syncpoint_default_channel");
+	    if (syncpointDefaultChannelName != null) {
+	    	Constants.syncpointDefaultChannelName = syncpointDefaultChannelName;
 	    }
 	    //TDDatabase db = server.getDatabaseNamed(appDb);
 	    Log.d(TAG, "Checking for touchdb at " + filesDir + File.separator + appDb + TOUCHDB_DATABASE_SUFFIX);
@@ -185,6 +195,22 @@ public class AndroidCouchbaseCallback extends DroidGap
 				//this.setCouchAppUrl("/");
 				AndroidCouchbaseCallback.this.loadUrl(url);
 			}
+	    	SharedPreferences preferences = getPreferences(Activity.MODE_PRIVATE); 
+	    	String sessID = preferences.getString("Syncpoint_SessionDocID", null);
+	    	 //create a document
+            Map<String, Object> documentProperties = new HashMap<String, Object>();
+            documentProperties.put("_id", sessID);
+            TDBody body = new TDBody(documentProperties);
+	    	SyncpointClient syncpoint = new SyncpointClient(body);
+	    	URL masterServerUrl = null;
+			try {
+				masterServerUrl = new URL(masterServer);
+			} catch (MalformedURLException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+	    	syncpoint.init(server, masterServerUrl, syncpointAppId, preferences);
+	    	
 	    } else {
 	    	Log.d(TAG, "Touchdb exists. Loading WebView.");	    	
 	    }
@@ -200,8 +226,8 @@ public class AndroidCouchbaseCallback extends DroidGap
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-//				TDReplicator replPull = db.getReplicator(remote, false, true);
-//				replPull.start();
+				TDReplicator replPull = db.getReplicator(remote, false, true);
+				replPull.start();
 				TDReplicator replPush = db.getReplicator(remote, true, true);
 				replPush.start();
 			} catch (Exception e) {
@@ -209,6 +235,7 @@ public class AndroidCouchbaseCallback extends DroidGap
 				e.printStackTrace();
 			}
     	}
+    	
 	    AndroidCouchbaseCallback.this.loadUrl(couchAppUrl);
     }
 

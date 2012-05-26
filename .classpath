@@ -5,7 +5,6 @@
 	<classpathentry kind="con" path="com.android.ide.eclipse.adt.ANDROID_FRAMEWORK"/>
 	<classpathentry kind="con" path="com.android.ide.eclipse.adt.LIBRARIES"/>
 	<classpathentry kind="lib" path="libs/cordova-1.7.0.jar"/>
-	<classpathentry kind="lib" path="libs/commons-io-2.1.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/TouchDB-Android"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/TouchDB-Android-JavaScript"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/TouchDB-Android-Listener"/>
@@ -14,5 +13,11 @@
 	<classpathentry kind="lib" path="/TouchDB-Android-Listener/libs/webserver.jar"/>
 	<classpathentry kind="lib" path="/TouchDB-Android-JavaScript/libs/js.jar"/>
 	<classpathentry kind="lib" path="/TouchDB-Android-Listener/libs/servlet-api-2.4.jar"/>
+	<classpathentry kind="lib" path="/TouchDB-Android-Ektorp/libs/org.ektorp-1.2.2.jar"/>
+	<classpathentry kind="lib" path="/TouchDB-Android-Ektorp/libs/org.ektorp.android-1.2.2.jar"/>
+	<classpathentry kind="lib" path="/TouchDB-Android-Ektorp/libs/slf4j-api-1.6.1.jar"/>
+	<classpathentry kind="lib" path="/TouchDB-Android-Ektorp/libs/slf4j-jdk14-1.6.1.jar"/>
+	<classpathentry kind="lib" path="libs/android-support-v4.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/TouchDB-Android-Ektorp"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>
