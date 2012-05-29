@@ -107,6 +107,15 @@ public class SyncpointModel extends TDRevision {
 		if (doc == null) {
 			return null;
 		}
+		// create documentProperties once rev. has been saved.
+		if (doc.getProperties() == null) {
+			Map<String, Object> documentProperties = new HashMap<String, Object>();
+			documentProperties.put("_id", doc.getDocId());
+			documentProperties.put("_rev", doc.getRevId());
+			documentProperties.put("sequence", doc.getSequence());
+			documentProperties.put("deleted", doc.isDeleted());
+			doc.setProperties(documentProperties);
+		}
 		// TODO: docCache?
 		return doc;
 	}

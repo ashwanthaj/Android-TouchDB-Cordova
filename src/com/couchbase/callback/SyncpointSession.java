@@ -30,6 +30,10 @@ public class SyncpointSession extends SyncpointModel {
 	private TDStatus error;
 	
     public static final String TAG = "SyncpointSession";
+    
+    public SyncpointSession(TDRevision doc) {
+    	super(doc.getProperties());
+    }
 	
 	public SyncpointSession(TDBody body) {
 		super(body);
@@ -74,10 +78,15 @@ public class SyncpointSession extends SyncpointModel {
 		return session;
 	}
 	
+	/** Creates a new session document in the local control database.
+    @param database  The local server's control database.
+    @param appId  The ID of this app on the Syncpoint cluster
+    @return  The new SyncpointSession instance. */
 	public static SyncpointSession makeSessionInDatabase(TDDatabase database, String appId, URL remote, Context context) {
 	    // TODO: Register the other model classes with the database's model factory:
     	Log.d(TAG, String.format("Creating session for %s in %s:",appId, database));	    	
-    	SyncpointSession session = (SyncpointSession) initWithNewDocumentInDatabase(database, null);
+    	TDRevision doc = initWithNewDocumentInDatabase(database, null);
+    	SyncpointSession session = new SyncpointSession(doc);
     	session.getProperties().put("app_id", appId);
     	session.getProperties().put("syncpoint_url", remote);
     	session.setState("new");
@@ -87,14 +96,16 @@ public class SyncpointSession extends SyncpointModel {
     	oauthCreds.put("token_secret", TDMisc.TDCreateUUID());
     	oauthCreds.put("token", TDMisc.TDCreateUUID());
     	session.setOauthCreds(oauthCreds);
+    	session.getProperties().putAll(oauthCreds);
     	HashMap<String,String> pairingCreds = new HashMap<String,String>();
     	pairingCreds.put("username", "pairing-" + TDMisc.TDCreateUUID());
     	pairingCreds.put("password", TDMisc.TDCreateUUID());
     	session.setPairingCreds(pairingCreds);
+    	session.getProperties().putAll(pairingCreds);
     	TDStatus status = new TDStatus();
-    	database.putRevision(session, null, false, status);
+    	database.putRevision(session, doc.getRevId(), false, status);
     	if (status.getCode() >= 300) {
-    		Log.e(TAG, String.format("SyncpointSession: Couldn't save new session"));
+    		Log.e(TAG, String.format("SyncpointSession: Couldn't save new session at database: %s ", database.getName()));
     		return null;
     	}
     	String sessionID = session.getDocId();

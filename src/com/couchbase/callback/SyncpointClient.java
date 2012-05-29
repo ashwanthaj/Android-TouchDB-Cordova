@@ -172,8 +172,9 @@ public class SyncpointClient extends SyncpointModel {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-    	response = client.put(remote.toString() + "_session", docJson);
-    	
+
+        // /_users/org.couchdb.user:pairing-59e71fe9a7ca91f6d18eb683eba99f59
+    	response = client.put(remote.toString() + userDbName + "/", docJson);    	
     	 //http://pairing-59e71fe9a7ca91f6d18eb683eba99f59:f3c0ac1e4bcf436f2e84f43b2cd4be98@localhost:5984
     	String credentials = (String) session.pairingUserProperties().get("username") + ":" 
     	+ (String) session.pairingUserProperties().get("password") + "@";
@@ -181,7 +182,7 @@ public class SyncpointClient extends SyncpointModel {
     	String remoteUserDbUrl = remote.toString() + userDbName + "/" + id;
     	String remoteURLString = remoteUserDbUrl.replace("://", "://" + credentials);
     	//response = client.put(remoteUserDbName, docJson);
-    	waitForPairingToComplete(remoteURLString, newUserDoc)
+    	waitForPairingToComplete(remoteURLString, newUserDoc);
     }
     
     public void waitForPairingToComplete(final String remoteURLString, final TDRevision userDoc) {
@@ -222,6 +223,13 @@ public class SyncpointClient extends SyncpointModel {
     	session.setOwnerId((String) props.get("owner_id"));
     	session.setControlDatabase((String) props.get("control_database"));
     	// save session to the control db - sp_control/E9763BE2-98DC-4416-92FC-1C275597EB4C
+    	TDStatus status = new TDStatus();
+    	database.putRevision(session, null, false, status);
+    	Log.v(TAG, "Device is now paired");
+    	// TODO: Confirm that numberWithBool:YES returns 1.
+    	props.put("_deleted", 1);
+    	userDoc.setProperties(props);
+    	
     }
     
     /* Buggy...
