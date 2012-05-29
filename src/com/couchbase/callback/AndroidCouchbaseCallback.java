@@ -28,9 +28,12 @@ import java.util.Properties;
 
 import org.apache.cordova.DroidGap;
 
+import android.accounts.Account;
+import android.accounts.AccountManager;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
@@ -38,9 +41,13 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.WebView;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -56,6 +63,9 @@ import com.couchbase.touchdb.replicator.TDReplicator;
 public class AndroidCouchbaseCallback extends DroidGap
 {
     public static final String TAG = AndroidCouchbaseCallback.class.getName();
+    private static final int ACTIVITY_ACCOUNTS = 1;
+    private static final int MENU_ACCOUNTS = 2;    
+    private static final int COPY_TEXT = 3;    
     public static final String COUCHBASE_DATABASE_SUFFIX = ".couch";
     public static final String TOUCHDB_DATABASE_SUFFIX = ".touchdb";
     public static final String WELCOME_DATABASE = "welcome";
@@ -64,6 +74,10 @@ public class AndroidCouchbaseCallback extends DroidGap
     private ProgressDialog progressDialog;
     private Handler uiHandler;
     static Handler myHandler;
+    private Account selectedAccount;
+    private boolean registered;
+    private SyncpointClient syncpoint;
+    private TDServer server = null;
 
 
     protected boolean installWelcomeDatabase() {
@@ -132,10 +146,9 @@ public class AndroidCouchbaseCallback extends DroidGap
         	System.err.println("Failed to open microlog property file");
         }
         
-        TDServer server = null;
+        
         try {
-            server = new TDServer(filesDir);
-            
+            server = new TDServer(filesDir);           
             listener = new TDListener(server, 8888);
             listener.start();
             
@@ -196,24 +209,25 @@ public class AndroidCouchbaseCallback extends DroidGap
 				//this.setCouchAppUrl("/");
 				AndroidCouchbaseCallback.this.loadUrl(url);
 			}
-	    	// Syncpoint
-	    	//create a document
-            Map<String, Object> documentProperties = new HashMap<String, Object>();
-            //documentProperties.put("_id", sessID);
-            TDBody body = new TDBody(documentProperties);
-	    	SyncpointClient syncpoint = new SyncpointClient(body,getContext());
-	    	URL masterServerUrl = null;
-			try {
-				masterServerUrl = new URL(masterServer);
-			} catch (MalformedURLException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-	    	syncpoint.init(server, masterServerUrl, syncpointAppId);
-	    	
 	    } else {
 	    	Log.d(TAG, "Touchdb exists. Loading WebView.");	    	
 	    }
+	    
+    	/** Syncpoint	**/
+	    
+        Map<String, Object> documentProperties = new HashMap<String, Object>();
+        //documentProperties.put("_id", sessID);
+        TDBody body = new TDBody(documentProperties);
+    	syncpoint = new SyncpointClient(body,getContext());
+    	URL masterServerUrl = null;
+		try {
+			masterServerUrl = new URL(masterServer);
+		} catch (MalformedURLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    	syncpoint.init(server, masterServerUrl, syncpointAppId);
+    	
     	// If REPLICATION_SERVER_URL is still null, don't configure C2DM or replication.	
     	if (Constants.replicationURL != null) {
     		try {
@@ -266,16 +280,103 @@ public class AndroidCouchbaseCallback extends DroidGap
         return result;
     }
 
-    /**
-     * Clean up the Couchbase service
-     */
-    //@Override
-   /* public void onDestroy() {
-        if(couchbaseService != null) {
-            unbindService(couchbaseService);
+    @Override
+    protected void onActivityResult( int requestCode,
+                                        int resultCode, 
+                                        Intent extras ) {
+        super.onActivityResult( requestCode, resultCode, extras);
+        switch(requestCode) {
+        case ACTIVITY_ACCOUNTS: {
+        	if (resultCode == RESULT_OK) {
+        		String accountName = extras.getStringExtra( "account" );
+        		selectedAccount = getAccountFromAccountName( accountName );
+        		Toast.makeText(this, "Account selected: "+accountName, Toast.LENGTH_SHORT).show();
+        		if( selectedAccount != null )
+        			register();
+        	} 
         }
-        super.onDestroy();
-    }*/
+        break;
+        }
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        boolean result = super.onCreateOptionsMenu(menu);
+        menu.add( Menu.NONE, COPY_TEXT, Menu.NONE, R.string.copy_text );
+        menu.add( Menu.NONE, MENU_ACCOUNTS, Menu.NONE, R.string.menu_accounts );
+        return result;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected( MenuItem item ) {
+        switch ( item.getItemId() ) {
+            case MENU_ACCOUNTS: {
+                    Intent i = new Intent();
+                    i.setClassName( 
+                        "com.couchbase.callback",
+                        "com.couchbase.callback.AccountSelector" );
+                    startActivityForResult(i, ACTIVITY_ACCOUNTS );
+                    return true;
+                }
+//            case COPY_TEXT: {
+//                Toast.makeText(getApplicationContext(), "Select Text", Toast.LENGTH_SHORT).show();
+//                //selectAndCopyText();
+//                emulateShiftHeld(webView);
+//                return true;
+//            }
+        }
+        return false;
+    }
+    
+	public Account getSelectedAccount() {
+		return selectedAccount;
+	}
+	
+	private Account getAccountFromAccountName( String accountName ) {
+		AccountManager accountManager = AccountManager.get( this );
+		Account accounts[] = accountManager.getAccounts();
+		for( int i = 0 ; i < accounts.length ; ++i )
+			if( accountName.equals( accounts[i].name ) )
+				return accounts[i];
+		return null;
+	}
+	
+	private void register() {
+		if( registered )
+			unregister();
+		else {
+			Log.d( TAG, "register()" );
+			//C2DMessaging.register( this, C2DM_SENDER );
+			syncpoint.pairSessionWithType("console", selectedAccount.name);
+			Log.d( TAG, "register() done" );
+		}
+	}
+
+	private void unregister() {
+		if( registered ) {
+			Log.d( TAG, "unregister()" );
+			//C2DMessaging.unregister( this );
+			Log.d( TAG, "unregister() done" );
+		}
+	}
+	
+    // kudos: http://stackoverflow.com/questions/6058843/android-how-to-select-texts-from-webview    
+    private void emulateShiftHeld(WebView view)
+    {
+        try
+        {
+            KeyEvent shiftPressEvent = new KeyEvent(0, 0, KeyEvent.ACTION_DOWN,
+                                                    KeyEvent.KEYCODE_SHIFT_LEFT, 0, 0);
+            shiftPressEvent.dispatch(view);
+            Toast.makeText(this, "Now click the text you highlighted.", Toast.LENGTH_SHORT).show();
+        }
+        catch (Exception e)
+        {
+            Log.e("dd", "Exception in emulateShiftHeld()", e);
+        }
+    }
+    
+    
     
     public void displayLargeMessage( String message, String size ) {
 		LayoutInflater inflater = getLayoutInflater();

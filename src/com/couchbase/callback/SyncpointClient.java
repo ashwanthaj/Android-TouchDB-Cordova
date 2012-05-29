@@ -87,6 +87,8 @@ public class SyncpointClient extends SyncpointModel {
         if (localControlDatabase == null) {
         	return null;
         }
+        Log.d(TAG, "Setting database to localControlDatabase: " + localControlDatabase.getName());
+        database = localControlDatabase;
         session = SyncpointSession.sessionInDatabase(localControlDatabase, context);
         if (session == null) {	// if no session make one
         	session = SyncpointSession.makeSessionInDatabase(localControlDatabase, appId, remote, context);
@@ -121,6 +123,22 @@ public class SyncpointClient extends SyncpointModel {
         }, null, "1.1");
         setTracksChanges(true, server, database);
     	return database;
+    }
+    
+    public void pairSessionWithType(String pairingType, String pairingToken) {
+    	if (session.isPaired()) {
+    		return;
+    	}
+    	session.getProperties().put("pairing_type", pairingType);
+    	session.getProperties().put("pairing_token", pairingToken);
+    	TDStatus status = new TDStatus();
+    	database.putRevision(session, session.getRevId(), false, status);
+    	if (status.getCode() >= 300) {
+    		Log.e(TAG, String.format("SyncpointSession: Couldn't save new session at database: %s, code: %s ", database.getName(), status.getCode()));
+    		Log.e(TAG, String.format("SyncpointSession: Couldn't save new session for _id: %s, _rev: %s ", session.getDocId(), session.getRevId()));
+    		return;
+    	}
+    	beginPairing();
     }
     
     public void beginPairing() {

@@ -74,7 +74,7 @@ public class SyncpointSession extends SyncpointModel {
 			editor.commit();
 			return null;
 		}
-		session = (SyncpointSession) doc;
+		session = new SyncpointSession(doc);
 		return session;
 	}
 	
@@ -109,7 +109,8 @@ public class SyncpointSession extends SyncpointModel {
     		return null;
     	}
     	String sessionID = session.getDocId();
-    	Log.d(TAG, String.format("...session ID = %s:",sessionID)); 	
+    	Log.d(TAG, String.format("...session ID = %s:",sessionID)); 
+    	Log.d(TAG, String.format("...session _rev = %s; doc _rev = %s.",session.getRevId(), doc.getRevId())); 
     	SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
 		//String sessID = prefs.getString("Syncpoint_SessionDocID", null);
 		SharedPreferences.Editor editor = prefs.edit();
