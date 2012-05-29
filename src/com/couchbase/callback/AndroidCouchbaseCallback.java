@@ -160,7 +160,8 @@ public class AndroidCouchbaseCallback extends DroidGap
 	    String masterServer = properties.getProperty("master_server");
 	    if (masterServer != null) {
 	    	Constants.serverURLString = masterServer;
-	    	Constants.replicationURL = masterServer + "/" + appDb;
+	    	//Constants.replicationURL = masterServer + "/" + appDb;
+	    	Log.d(TAG, "Disabled Constants.replicationURL: no replication.");
 		    Log.d(TAG, "replicationURL: " + Constants.replicationURL);
 	    }
 	    String syncpointAppId = properties.getProperty("syncpoint_app_id");
@@ -195,13 +196,12 @@ public class AndroidCouchbaseCallback extends DroidGap
 				//this.setCouchAppUrl("/");
 				AndroidCouchbaseCallback.this.loadUrl(url);
 			}
-	    	SharedPreferences preferences = getPreferences(Activity.MODE_PRIVATE); 
-	    	String sessID = preferences.getString("Syncpoint_SessionDocID", null);
-	    	 //create a document
+	    	// Syncpoint
+	    	//create a document
             Map<String, Object> documentProperties = new HashMap<String, Object>();
-            documentProperties.put("_id", sessID);
+            //documentProperties.put("_id", sessID);
             TDBody body = new TDBody(documentProperties);
-	    	SyncpointClient syncpoint = new SyncpointClient(body);
+	    	SyncpointClient syncpoint = new SyncpointClient(body,getContext());
 	    	URL masterServerUrl = null;
 			try {
 				masterServerUrl = new URL(masterServer);
@@ -209,7 +209,7 @@ public class AndroidCouchbaseCallback extends DroidGap
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-	    	syncpoint.init(server, masterServerUrl, syncpointAppId, preferences);
+	    	syncpoint.init(server, masterServerUrl, syncpointAppId);
 	    	
 	    } else {
 	    	Log.d(TAG, "Touchdb exists. Loading WebView.");	    	
@@ -226,10 +226,10 @@ public class AndroidCouchbaseCallback extends DroidGap
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				TDReplicator replPull = db.getReplicator(remote, false, true);
-				replPull.start();
-				TDReplicator replPush = db.getReplicator(remote, true, true);
-				replPush.start();
+//				TDReplicator replPull = db.getReplicator(remote, false, true);
+//				replPull.start();
+//				TDReplicator replPush = db.getReplicator(remote, true, true);
+//				replPush.start();
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
