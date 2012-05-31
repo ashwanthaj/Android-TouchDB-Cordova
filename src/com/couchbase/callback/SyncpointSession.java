@@ -103,7 +103,10 @@ public class SyncpointSession extends SyncpointModel {
     	session.setPairingCreds(pairingCreds);
     	session.getProperties().putAll(pairingCreds);
     	TDStatus status = new TDStatus();
-    	database.putRevision(session, doc.getRevId(), false, status);
+    	TDRevision rev = database.putRevision(session, doc.getRevId(), false, status);
+    	// TODO: convert TDRevision to SyncpointSession instead.
+    	session.setRevId(rev.getRevId());
+		Log.e(TAG, String.format("SyncpointSession: session _id: %s, _rev: %s ", session.getDocId(), session.getRevId()));
     	if (status.getCode() >= 300) {
     		Log.e(TAG, String.format("SyncpointSession: Couldn't save new session at database: %s ", database.getName()));
     		return null;

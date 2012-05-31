@@ -6,12 +6,19 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Observable;
 import java.util.Observer;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.StatusLine;
+import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.codehaus.jackson.JsonGenerationException;
 import org.codehaus.jackson.JsonParseException;
@@ -20,7 +27,6 @@ import org.codehaus.jackson.map.ObjectMapper;
 import org.ektorp.http.HttpResponse;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.os.Handler;
 import android.util.Log;
 
@@ -33,8 +39,6 @@ import com.couchbase.touchdb.TDView;
 import com.couchbase.touchdb.TDViewMapBlock;
 import com.couchbase.touchdb.TDViewMapEmitBlock;
 import com.couchbase.touchdb.ektorp.TouchDBHttpClient;
-import com.couchbase.touchdb.replicator.TDPuller;
-import com.couchbase.touchdb.replicator.TDPusher;
 import com.couchbase.touchdb.replicator.TDReplicator;
 import com.couchbase.touchdb.replicator.changetracker.TDChangeTracker;
 import com.couchbase.touchdb.replicator.changetracker.TDChangeTracker.TDChangeTrackerMode;
@@ -93,6 +97,7 @@ public class SyncpointClient extends SyncpointModel {
         if (session == null) {	// if no session make one
         	session = SyncpointSession.makeSessionInDatabase(localControlDatabase, appId, remote, context);
         }
+        session.setDatabase(localControlDatabase);
         //TODO: error logging
         if (session.isPaired()) {
         	Log.d(TAG, "Session is active");
@@ -147,14 +152,53 @@ public class SyncpointClient extends SyncpointModel {
     		assert !session.isPaired();
     		TDStatus status = new TDStatus();
     		session.clearState(status);
+    		savePairingUserToRemote();
     	}
     }
     
     public void savePairingUserToRemote() {
     	TDRevision rev = SyncpointModel.initWithURL(remote.toString());
     	TouchDBHttpClient client = new TouchDBHttpClient(server);
-    	HttpResponse response = client.get(remote.toString() + "_session");
-    	InputStream input = response.getContent();
+    	//HttpResponse response = client.get(remote.toString() + "_session");
+    	//InputStream input = response.getContent();
+    	
+    	//TDURLConnection conn = sendRequest(server, "GET", remote.toString(), null, null);
+//        int statucCode = conn.getResponseCode();
+//        TDBody fullBody = conn.getResponseBody();
+//        Map<String,Object> resp = fullBody.getProperties();
+//        //boolean responseOK = receivedPollResponse(fullBody.getProperties());
+//        HttpClientFactory clientFactory = (HttpClientFactory) new DefaultHttpClient();
+       // TDRemoteRequest request = new TDRemoteRequest(clientFactory, "GET", remote, null, new TDRemoteRequestCompletionBlock());
+        //request.start();
+
+		DefaultHttpClient httpClient = new DefaultHttpClient();
+		HttpUriRequest request = new HttpGet(remote.toString() + "_session");
+		//HttpClient httpClient = client.getHttpClient();
+		org.apache.http.HttpResponse resp = null;
+		try {
+			resp = httpClient.execute(request);
+		} catch (ClientProtocolException e2) {
+			// TODO Auto-generated catch block
+			e2.printStackTrace();
+		} catch (IOException e2) {
+			// TODO Auto-generated catch block
+			e2.printStackTrace();
+		}
+        StatusLine status = resp.getStatusLine();
+        HttpEntity entity = resp.getEntity();
+        int statucCode = status.getStatusCode();
+
+        InputStream input = null;
+		try {
+			input = entity.getContent();
+		} catch (IllegalStateException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+
     	String userDbName = null;	// name of the _users db
         try {
 			Map<String,Object> fullBody = mapper.readValue(input, Map.class);
@@ -177,22 +221,48 @@ public class SyncpointClient extends SyncpointModel {
         String id = (String) userProps.get("_id");
         TDRevision newUserDoc = SyncpointModel.initWithDocument(id);
         newUserDoc.getProperties().putAll(userProps);
-        String docJson = null;
-		try {
-			docJson = mapper.writeValueAsString(newUserDoc);
-		} catch (JsonGenerationException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (JsonMappingException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+        String docJson = newUserDoc.getBody().getJSONString();
+//		try {
+//			docJson = mapper.writeValueAsString(newUserDoc.getBody().getJSONString());
+//		} catch (JsonGenerationException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		} catch (JsonMappingException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		} catch (IOException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		}
 
         // /_users/org.couchdb.user:pairing-59e71fe9a7ca91f6d18eb683eba99f59
-    	response = client.put(remote.toString() + userDbName + "/", docJson);    	
+    	//HttpResponse response = client.put(remote.toString() + userDbName + "/", docJson);  
+    	
+        request = new HttpPut(remote.toString() + userDbName + "/");
+        
+        byte[] bodyBytes = null;
+        try {
+            bodyBytes = mapper.writeValueAsBytes(docJson);
+        } catch (Exception e) {
+            Log.e(TDDatabase.TAG, "Error serializing body of request", e);
+        }
+        ByteArrayEntity ent = new ByteArrayEntity(bodyBytes);
+        ent.setContentType("application/json");
+        ((HttpEntityEnclosingRequestBase)request).setEntity(ent);
+
+		try {
+			resp = httpClient.execute(request);
+		} catch (ClientProtocolException e2) {
+			// TODO Auto-generated catch block
+			e2.printStackTrace();
+		} catch (IOException e2) {
+			// TODO Auto-generated catch block
+			e2.printStackTrace();
+		}
+        status = resp.getStatusLine();
+        entity = resp.getEntity();
+        statucCode = status.getStatusCode();    	
+    	
     	 //http://pairing-59e71fe9a7ca91f6d18eb683eba99f59:f3c0ac1e4bcf436f2e84f43b2cd4be98@localhost:5984
     	String credentials = (String) session.pairingUserProperties().get("username") + ":" 
     	+ (String) session.pairingUserProperties().get("password") + "@";
@@ -204,13 +274,43 @@ public class SyncpointClient extends SyncpointModel {
     }
     
     public void waitForPairingToComplete(final String remoteURLString, final TDRevision userDoc) {
-    	final TouchDBHttpClient client = new TouchDBHttpClient(server);
+    	//final TouchDBHttpClient client = new TouchDBHttpClient(server);
+		final DefaultHttpClient httpClient = new DefaultHttpClient();
+
     	Handler mHandler = new Handler(); 
 		mHandler.postDelayed(new Runnable() { 
 	        public void run() { 
 	        	Log.v(TAG, "delaying launch of put to remoteUserDbName by 3 seconds.");
-	        	HttpResponse response = client.get(remoteURLString);
-	        	InputStream input = response.getContent();
+	        	//HttpResponse response = client.get(remoteURLString);
+	        	
+	        	HttpUriRequest request = new HttpGet(remote.toString() + "_session");
+	    		//HttpClient httpClient = client.getHttpClient();
+	    		org.apache.http.HttpResponse resp = null;
+	    		try {
+	    			resp = httpClient.execute(request);
+	    		} catch (ClientProtocolException e2) {
+	    			// TODO Auto-generated catch block
+	    			e2.printStackTrace();
+	    		} catch (IOException e2) {
+	    			// TODO Auto-generated catch block
+	    			e2.printStackTrace();
+	    		}
+	            StatusLine status = resp.getStatusLine();
+	            HttpEntity entity = resp.getEntity();
+	            int statucCode = status.getStatusCode();
+
+	            InputStream input = null;
+	    		try {
+	    			input = entity.getContent();
+	    		} catch (IllegalStateException e1) {
+	    			// TODO Auto-generated catch block
+	    			e1.printStackTrace();
+	    		} catch (IOException e1) {
+	    			// TODO Auto-generated catch block
+	    			e1.printStackTrace();
+	    		}
+	        	
+	        	//InputStream input = response.getContent();
 	        	String state = null;	// name of the _users db
 	            try {
 	    			Map<String,Object> fullBody = mapper.readValue(input, Map.class);
@@ -225,7 +325,7 @@ public class SyncpointClient extends SyncpointModel {
 	    			// TODO Auto-generated catch block
 	    			e.printStackTrace();
 	    		}
-	            if (state.equals("paired")) {
+	            if (state != null && state.equals("paired")) {
 	            	pairingDidComplete(remoteURLString, userDoc);
 	            } else {
 	            	waitForPairingToComplete(remoteURLString, userDoc);
