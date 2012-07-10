@@ -25,8 +25,10 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Random;
 
 import org.apache.cordova.DroidGap;
+import org.ektorp.CouchDbConnector;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
@@ -52,6 +54,9 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.couchbase.syncpoint.SyncpointClient;
+import com.couchbase.syncpoint.impl.SyncpointClientImpl;
+import com.couchbase.syncpoint.model.SyncpointChannel;
 import com.couchbase.touchdb.TDBody;
 import com.couchbase.touchdb.TDDatabase;
 import com.couchbase.touchdb.TDServer;
@@ -215,10 +220,10 @@ public class AndroidCouchbaseCallback extends DroidGap
 	    
     	/** Syncpoint	**/
 	    
-        Map<String, Object> documentProperties = new HashMap<String, Object>();
+        /*Map<String, Object> documentProperties = new HashMap<String, Object>();
         //documentProperties.put("_id", sessID);
         TDBody body = new TDBody(documentProperties);
-    	syncpoint = new SyncpointClient(body,getContext());
+    	syncpoint = new SyncpointClient(body,getContext());*/
     	URL masterServerUrl = null;
 		try {
 			masterServerUrl = new URL(masterServer);
@@ -226,24 +231,31 @@ public class AndroidCouchbaseCallback extends DroidGap
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-    	syncpoint.init(server, masterServerUrl, syncpointAppId);
+    	//syncpoint.init(server, masterServerUrl, syncpointAppId);
+    	
+    	// create the syncpoint client
+         syncpoint = new SyncpointClientImpl(getApplicationContext(), masterServerUrl, Constants.syncpointAppId);
     	
     	// If REPLICATION_SERVER_URL is still null, don't configure C2DM or replication.	
     	if (Constants.replicationURL != null) {
     		try {
-				TDDatabase db = server.getDatabaseNamed(appDb);
-				db.open();
-				URL remote = null;
-				try {
-					remote = new URL(Constants.replicationURL);
-				} catch (MalformedURLException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+//				TDDatabase db = server.getDatabaseNamed(appDb);
+//				db.open();
+//				URL remote = null;
+//				try {
+//					remote = new URL(Constants.replicationURL);
+//				} catch (MalformedURLException e) {
+//					// TODO Auto-generated catch block
+//					e.printStackTrace();
+//				}
 //				TDReplicator replPull = db.getReplicator(remote, false, true);
 //				replPull.start();
 //				TDReplicator replPush = db.getReplicator(remote, true, true);
 //				replPush.start();
+    			
+    			// TODO: Check if the pairing has been approved.
+    			SyncpointChannel channel = syncpoint.getMyChannel(Constants.syncpointDefaultChannelName);
+    			CouchDbConnector database = channel.ensureLocalDatabase(getApplicationContext());
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -347,7 +359,8 @@ public class AndroidCouchbaseCallback extends DroidGap
 		else {
 			Log.d( TAG, "register()" );
 			//C2DMessaging.register( this, C2DM_SENDER );
-			syncpoint.pairSessionWithType("console", selectedAccount.name);
+			//syncpoint.pairSessionWithType("console", selectedAccount.name);
+			syncpoint.pairSession("console", selectedAccount.name);
 			Log.d( TAG, "register() done" );
 		}
 	}

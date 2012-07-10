@@ -19,5 +19,6 @@
 	<classpathentry kind="lib" path="/TouchDB-Android-Ektorp/libs/slf4j-jdk14-1.6.1.jar"/>
 	<classpathentry kind="lib" path="libs/android-support-v4.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/TouchDB-Android-Ektorp"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/Syncpoint-Android"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>
