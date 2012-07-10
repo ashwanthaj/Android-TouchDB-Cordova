@@ -29,6 +29,7 @@ import java.util.Random;
 
 import org.apache.cordova.DroidGap;
 import org.ektorp.CouchDbConnector;
+import org.ektorp.DbAccessException;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
@@ -234,7 +235,13 @@ public class AndroidCouchbaseCallback extends DroidGap
     	//syncpoint.init(server, masterServerUrl, syncpointAppId);
     	
     	// create the syncpoint client
-         syncpoint = new SyncpointClientImpl(getApplicationContext(), masterServerUrl, Constants.syncpointAppId);
+         try {
+			syncpoint = new SyncpointClientImpl(getApplicationContext(), masterServerUrl, Constants.syncpointAppId);
+		} catch (DbAccessException e1) {
+			Log.e( TAG, "Error: " , e1);
+			e1.printStackTrace();
+			Toast.makeText(this, "Error: Unable to connect to Syncpoint Server: " + e1.getMessage(), Toast.LENGTH_LONG).show();
+		}
     	
     	// If REPLICATION_SERVER_URL is still null, don't configure C2DM or replication.	
     	if (Constants.replicationURL != null) {
@@ -360,8 +367,15 @@ public class AndroidCouchbaseCallback extends DroidGap
 			Log.d( TAG, "register()" );
 			//C2DMessaging.register( this, C2DM_SENDER );
 			//syncpoint.pairSessionWithType("console", selectedAccount.name);
-			syncpoint.pairSession("console", selectedAccount.name);
-			Log.d( TAG, "register() done" );
+			if (selectedAccount != null) {
+				try {
+					syncpoint.pairSession("console", selectedAccount.name);
+				} catch (DbAccessException e) {
+					Log.e( TAG, "Error: " , e);
+					Toast.makeText(this, "Error: Unable to connect to Syncpoint Server: " + e.getMessage(), Toast.LENGTH_LONG).show();
+				}
+				Log.d( TAG, "register() done" );
+			}
 		}
 	}
 
