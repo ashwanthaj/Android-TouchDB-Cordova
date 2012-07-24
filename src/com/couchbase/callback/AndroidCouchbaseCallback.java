@@ -23,25 +23,31 @@ import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Random;
 
 import org.apache.cordova.DroidGap;
 import org.ektorp.CouchDbConnector;
+import org.ektorp.CouchDbInstance;
 import org.ektorp.DbAccessException;
+import org.ektorp.ViewQuery;
+import org.ektorp.ViewResult;
+import org.ektorp.http.HttpClient;
+import org.ektorp.impl.StdCouchDbInstance;
+import org.ektorp.support.DesignDocument;
+import org.ektorp.support.SimpleViewGenerator;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
-import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -58,13 +64,15 @@ import android.widget.Toast;
 import com.couchbase.syncpoint.SyncpointClient;
 import com.couchbase.syncpoint.impl.SyncpointClientImpl;
 import com.couchbase.syncpoint.model.SyncpointChannel;
-import com.couchbase.touchdb.TDBody;
+import com.couchbase.syncpoint.model.SyncpointInstallation;
+import com.couchbase.syncpoint.model.SyncpointSession;
 import com.couchbase.touchdb.TDDatabase;
 import com.couchbase.touchdb.TDServer;
 import com.couchbase.touchdb.TDView;
+import com.couchbase.touchdb.TDViewMapBlock;
+import com.couchbase.touchdb.ektorp.TouchDBHttpClient;
 import com.couchbase.touchdb.javascript.TDJavaScriptViewCompiler;
 import com.couchbase.touchdb.listener.TDListener;
-import com.couchbase.touchdb.replicator.TDReplicator;
 
 public class AndroidCouchbaseCallback extends DroidGap
 {
@@ -152,7 +160,6 @@ public class AndroidCouchbaseCallback extends DroidGap
         	System.err.println("Failed to open microlog property file");
         }
         
-        
         try {
             server = new TDServer(filesDir);           
             listener = new TDListener(server, 8888);
@@ -237,6 +244,26 @@ public class AndroidCouchbaseCallback extends DroidGap
     	// create the syncpoint client
          try {
 			syncpoint = new SyncpointClientImpl(getApplicationContext(), masterServerUrl, Constants.syncpointAppId);
+			SyncpointChannel channel = syncpoint.getMyChannel(syncpointDefaultChannelName);
+			SyncpointInstallation inst = channel.getInstallation(getApplicationContext());
+	        if(inst != null) {
+	        	CouchDbConnector localDatabase = inst.getLocalDatabase(getApplicationContext());
+	        	String localDatabaseName = localDatabase.getDatabaseName();
+	        	Log.v(TAG, "localDatabaseName: " + localDatabaseName);
+	        	TDDatabase origDb = server.getDatabaseNamed(appDb);
+	        	origDb.open();
+	        	TDDatabase newDb = server.getDatabaseNamed(localDatabaseName);
+	        	newDb.open();
+	        	List<TDView> views = origDb.getAllViews();
+	        	for (TDView tdView : views) {
+	        		//TDView origView = origDb.getExistingViewNamed("aview");
+		        	TDViewMapBlock mapBlock = tdView.getMapBlock();
+		        	TDView newView = newDb.getViewNamed("aview");
+		        	newView.setMapReduceBlocks(mapBlock, null, "1");
+				}
+	        	origDb.close();
+	        	newDb.close();
+	        }
 		} catch (DbAccessException e1) {
 			Log.e( TAG, "Error: " , e1);
 			e1.printStackTrace();
@@ -259,10 +286,6 @@ public class AndroidCouchbaseCallback extends DroidGap
 //				replPull.start();
 //				TDReplicator replPush = db.getReplicator(remote, true, true);
 //				replPush.start();
-    			
-    			// TODO: Check if the pairing has been approved.
-    			SyncpointChannel channel = syncpoint.getMyChannel(Constants.syncpointDefaultChannelName);
-    			CouchDbConnector database = channel.ensureLocalDatabase(getApplicationContext());
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -370,6 +393,14 @@ public class AndroidCouchbaseCallback extends DroidGap
 			if (selectedAccount != null) {
 				try {
 					syncpoint.pairSession("console", selectedAccount.name);
+			    	HttpClient httpClient = new TouchDBHttpClient(server);
+			    	CouchDbInstance localServer = new StdCouchDbInstance(httpClient);  	
+			    	//CouchDbConnector userDb = localServer.createConnector("_users", false);
+			    	CouchDbConnector localControlDatabase = localServer.createConnector(SyncpointClientImpl.LOCAL_CONTROL_DATABASE_NAME, false);
+			    	//PairingUser pairingUser = session.getPairingUser();
+					//PairingUser result = userDb.get(PairingUser.class, pairingUser.getId());
+					//waitForPairingToComplete(localServer, localControlDatabase);
+			    	pairingDidComplete(localServer);
 				} catch (DbAccessException e) {
 					Log.e( TAG, "Error: " , e);
 					Toast.makeText(this, "Error: Unable to connect to Syncpoint Server: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -378,7 +409,6 @@ public class AndroidCouchbaseCallback extends DroidGap
 			}
 		}
 	}
-
 	private void unregister() {
 		if( registered ) {
 			Log.d( TAG, "unregister()" );
@@ -386,6 +416,59 @@ public class AndroidCouchbaseCallback extends DroidGap
 			Log.d( TAG, "unregister() done" );
 		}
 	}
+	
+	 void waitForPairingToComplete(final CouchDbInstance localServer, final CouchDbConnector localControlDatabase) {
+	        Log.v(TAG, "Waiting for pairing to complete...");
+	        Looper l = Looper.getMainLooper();
+	        Handler h = new Handler(l);
+	        h.postDelayed(new Runnable() {
+
+	            @Override
+	            public void run() {
+	            	String message = "Checking to see if account has been authorized.";
+	            	Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
+	                Log.v(TAG, message);
+			    	SyncpointSession session = SyncpointSession.sessionInDatabase(getApplicationContext(), localServer, localControlDatabase);
+	                if (session.isPaired()) {
+	                	pairingDidComplete(localServer);
+	                } else {
+	                	message = "Authorization is in progress. ";
+		            	Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
+	                    Log.v(TAG, message);
+	                    waitForPairingToComplete(localServer, localControlDatabase);
+	                }
+	                /*PairingUser user = remote.get(PairingUser.class, userDoc.getId());
+	                if("paired".equals(user.getPairingState())) {
+	                    pairingDidComplete(localServer);
+	                } else {
+	                	message = "Pairing state is stuck at " + user.getPairingState();
+		            	Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
+	                    Log.v(TAG, message);
+	                    waitForPairingToComplete(localServer, session, remote, user);
+	                }*/
+	            }
+	        }, 3000);
+	    }
+	    
+	 void pairingDidComplete(final CouchDbInstance localServer) {
+		 //CouchDbConnector localControlDatabase = localServer.createConnector(SyncpointClientImpl.LOCAL_CONTROL_DATABASE_NAME, false);
+		 //SyncpointSession session = SyncpointSession.sessionInDatabase(getApplicationContext(), localServer, localControlDatabase);
+		 //if(session != null) {
+		 //if(session.isPaired()) {
+		 
+		 String message = "Authorization Completed";
+		 Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
+		 Log.v(TAG, message);
+		 SyncpointChannel channel = syncpoint.getMyChannel(Constants.syncpointDefaultChannelName);
+		 CouchDbConnector database = channel.ensureLocalDatabase(getApplicationContext());
+		 // create a sample document to verify that replication in the channel is working
+		 Map<String,Object> testObject = new HashMap<String,Object>();
+		 testObject.put("key", "value");
+		 // store the document
+		 database.create(testObject);
+		 //}
+		 //}
+	 }
 	
     // kudos: http://stackoverflow.com/questions/6058843/android-how-to-select-texts-from-webview    
     private void emulateShiftHeld(WebView view)
