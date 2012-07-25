@@ -23,7 +23,6 @@ import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -31,12 +30,8 @@ import org.apache.cordova.DroidGap;
 import org.ektorp.CouchDbConnector;
 import org.ektorp.CouchDbInstance;
 import org.ektorp.DbAccessException;
-import org.ektorp.ViewQuery;
-import org.ektorp.ViewResult;
 import org.ektorp.http.HttpClient;
 import org.ektorp.impl.StdCouchDbInstance;
-import org.ektorp.support.DesignDocument;
-import org.ektorp.support.SimpleViewGenerator;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
@@ -69,10 +64,10 @@ import com.couchbase.syncpoint.model.SyncpointSession;
 import com.couchbase.touchdb.TDDatabase;
 import com.couchbase.touchdb.TDServer;
 import com.couchbase.touchdb.TDView;
-import com.couchbase.touchdb.TDViewMapBlock;
 import com.couchbase.touchdb.ektorp.TouchDBHttpClient;
 import com.couchbase.touchdb.javascript.TDJavaScriptViewCompiler;
 import com.couchbase.touchdb.listener.TDListener;
+import com.couchbase.touchdb.replicator.TDReplicator;
 
 public class AndroidCouchbaseCallback extends DroidGap
 {
@@ -92,6 +87,8 @@ public class AndroidCouchbaseCallback extends DroidGap
     private boolean registered;
     private SyncpointClient syncpoint;
     private TDServer server = null;
+    private TDDatabase newDb;
+	private String localSyncpointDbName;	// null if local syncpoint DB has not been created and replicated.
 
 
     protected boolean installWelcomeDatabase() {
@@ -182,7 +179,6 @@ public class AndroidCouchbaseCallback extends DroidGap
         uiHandler = new Handler();
         String appDb = properties.getProperty("app_db");
 	    File destination = new File(filesDir + File.separator + appDb + TOUCHDB_DATABASE_SUFFIX);
-	    String couchAppUrl = url + properties.getProperty("couchAppInstanceUrl");
 	    String masterServer = properties.getProperty("master_server");
 	    if (masterServer != null) {
 	    	Constants.serverURLString = masterServer;
@@ -250,19 +246,49 @@ public class AndroidCouchbaseCallback extends DroidGap
 	        	CouchDbConnector localDatabase = inst.getLocalDatabase(getApplicationContext());
 	        	String localDatabaseName = localDatabase.getDatabaseName();
 	        	Log.v(TAG, "localDatabaseName: " + localDatabaseName);
-	        	TDDatabase origDb = server.getDatabaseNamed(appDb);
-	        	origDb.open();
-	        	TDDatabase newDb = server.getDatabaseNamed(localDatabaseName);
+	        	//TDDatabase origDb = server.getDatabaseNamed(appDb);
+	        	//origDb.open();
+	        	newDb = server.getDatabaseNamed(localDatabaseName);
 	        	newDb.open();
-	        	List<TDView> views = origDb.getAllViews();
-	        	for (TDView tdView : views) {
-	        		//TDView origView = origDb.getExistingViewNamed("aview");
-		        	TDViewMapBlock mapBlock = tdView.getMapBlock();
-		        	TDView newView = newDb.getViewNamed("aview");
-		        	newView.setMapReduceBlocks(mapBlock, null, "1");
-				}
-	        	origDb.close();
-	        	newDb.close();
+	        	
+	        	long designDocId = newDb.getDocNumericID("_design/couchabb");
+	        	
+	        	if (designDocId < 1) {
+	        		/*Map<String,Object> ddocViewTest = new HashMap<String,Object>();
+		        	ddocViewTest.put("map", "function(doc) { if(doc.message) { emit(doc.message, 1); } }");
+
+		        	Map<String,Object> ddocViews = new HashMap<String,Object>();
+		        	ddocViews.put("test", ddocViewTest);
+
+		        	Map<String,Object> ddoc = new HashMap<String,Object>();
+		        	ddoc.put("views", ddocViews);
+		        	Map<String,Object> ddocresult = (Map<String,Object>)sendBody(server, "PUT", "/db/_design/doc", ddoc, TDStatus.CREATED, null);*/
+		             
+		             
+		        	/*List<TDView> views = origDb.getAllViews();
+		        	for (TDView tdView : views) {
+		        		//TDView origView = origDb.getExistingViewNamed("aview");
+		        		String viewName = tdView.getName();
+			        	TDViewMapBlock mapBlock = tdView.getMapBlock();
+			        	TDView newView = newDb.getViewNamed("_design/" + viewName);
+			        	newView.setMapReduceBlocks(mapBlock, null, "1");
+					}*/
+		        	
+		        	URL localCouchappUrl = null;
+					try {
+						localCouchappUrl = new URL(url + appDb);
+					} catch (MalformedURLException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+		        	TDReplicator replPull = newDb.getReplicator(localCouchappUrl, false, false);
+		        	replPull.start();
+		        	
+		        	//origDb.close();
+		        	//newDb.close();
+	        	} else {
+	        		localSyncpointDbName = localDatabaseName;
+	        	}
 	        }
 		} catch (DbAccessException e1) {
 			Log.e( TAG, "Error: " , e1);
@@ -291,7 +317,11 @@ public class AndroidCouchbaseCallback extends DroidGap
 				e.printStackTrace();
 			}
     	}
-    	
+	    String couchAppUrl = url + appDb + "/" + properties.getProperty("couchAppInstanceUrl");
+	    if (newDb != null) {
+	    	couchAppUrl = url + localSyncpointDbName + "/" + properties.getProperty("couchAppInstanceUrl");
+	    }
+	    Log.d( TAG, "Loading couchAppUrl: " + couchAppUrl );
 	    AndroidCouchbaseCallback.this.loadUrl(couchAppUrl);
     }
 
@@ -560,6 +590,26 @@ public class AndroidCouchbaseCallback extends DroidGap
             Log.e("tag", e.getMessage());
         }
 
+    }
+    
+    @Override
+    public void onRestart() {
+    	super.onRestart();
+    	Log.d(TAG, "restarting...");
+    }
+
+    @Override
+    public void onDestroy() {
+    	super.onDestroy();
+    	try {
+    		Log.d(TAG, "stoppping app...");
+    		if (newDb != null) {
+        		newDb.close();
+    		}
+    	} catch (Exception e) {
+    		Log.e(TAG, "Error stopping app.");
+    		e.printStackTrace();
+    	}
     }
 }
 

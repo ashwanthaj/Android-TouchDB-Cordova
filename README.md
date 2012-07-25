@@ -69,7 +69,7 @@ This should have put an attachments directory in that directory.
 3. Edit res/raw/coconut.properties and change coconut-sample to the name of your couchapp and adjust the couchAppInstanceUrl. Note that you can also change the port in this file.
 
     app_db=coconut-sample
-    couchAppInstanceUrl=coconut-sample/_design/coconut/index.html    
+    couchAppInstanceUrl=_design/coconut/index.html    
 	
 3.  Repackage your application with the database file included
 

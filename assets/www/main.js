@@ -1,3 +1,22 @@
+/*
+       Licensed to the Apache Software Foundation (ASF) under one
+       or more contributor license agreements.  See the NOTICE file
+       distributed with this work for additional information
+       regarding copyright ownership.  The ASF licenses this file
+       to you under the Apache License, Version 2.0 (the
+       "License"); you may not use this file except in compliance
+       with the License.  You may obtain a copy of the License at
+
+         http://www.apache.org/licenses/LICENSE-2.0
+
+       Unless required by applicable law or agreed to in writing,
+       software distributed under the License is distributed on an
+       "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+       KIND, either express or implied.  See the License for the
+       specific language governing permissions and limitations
+       under the License.
+*/
+
 var deviceInfo = function() {
     document.getElementById("platform").innerHTML = device.platform;
     document.getElementById("version").innerHTML = device.version;
@@ -69,7 +88,7 @@ function dump_pic(data) {
     viewport.style.position = "absolute";
     viewport.style.top = "10px";
     viewport.style.left = "10px";
-    document.getElementById("test_img").src = "data:image/jpeg;base64," + data;
+    document.getElementById("test_img").src = data;
 }
 
 function fail(msg) {
@@ -117,6 +136,25 @@ function check_network() {
     states[Connection.NONE]     = 'No network connection';
 
     confirm('Connection type:\n ' + states[networkState]);
+}
+
+var watchID = null;
+
+function updateHeading(h) {
+    document.getElementById('h').innerHTML = h.magneticHeading;
+}
+
+function toggleCompass() {
+    if (watchID !== null) {
+        navigator.compass.clearWatch(watchID);
+        watchID = null;
+        updateHeading({ magneticHeading : "Off"});
+    } else {        
+        var options = { frequency: 1000 };
+        watchID = navigator.compass.watchHeading(updateHeading, function(e) {
+            alert('Compass Error: ' + e.code);
+        }, options);
+    }
 }
 
 function init() {
