@@ -35,6 +35,7 @@
             <intent-filter> </intent-filter> 
         </activity>
         <activity android:name=".AccountSelector" android:label="@string/label_account_selector"/>
+        <activity android:name=".SignupProcessActivity" android:label="@string/label_signup_pending"/>
     </application>
 
 </manifest>

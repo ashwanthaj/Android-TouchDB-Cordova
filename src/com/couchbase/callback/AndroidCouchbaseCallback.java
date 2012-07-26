@@ -23,8 +23,13 @@ import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Observable;
+import java.util.Observer;
 import java.util.Properties;
+
+import junit.framework.Assert;
 
 import org.apache.cordova.DroidGap;
 import org.ektorp.CouchDbConnector;
@@ -74,7 +79,8 @@ public class AndroidCouchbaseCallback extends DroidGap
     public static final String TAG = AndroidCouchbaseCallback.class.getName();
     private static final int ACTIVITY_ACCOUNTS = 1;
     private static final int MENU_ACCOUNTS = 2;    
-    private static final int COPY_TEXT = 3;    
+    private static final int COPY_TEXT = 3; 
+    private static final int SIGNUP_PROCESS = 4;
     public static final String COUCHBASE_DATABASE_SUFFIX = ".couch";
     public static final String TOUCHDB_DATABASE_SUFFIX = ".touchdb";
     public static final String WELCOME_DATABASE = "welcome";
@@ -89,6 +95,10 @@ public class AndroidCouchbaseCallback extends DroidGap
     private TDServer server = null;
     private TDDatabase newDb;
 	private String localSyncpointDbName;	// null if local syncpoint DB has not been created and replicated.
+	private String url;	//baseURL for local couchapp.
+	private String appDb;	// db name from properties file used in installation.
+	private String couchAppInstanceUrl;	// from properties file used in installation.
+	private int replicationChangesProcessed;
 
 
     protected boolean installWelcomeDatabase() {
@@ -103,24 +113,8 @@ public class AndroidCouchbaseCallback extends DroidGap
         return R.drawable.splash;
     }
 
-    protected String getDatabaseName() {
-        return findCouchApp();
-    }
-
-    protected String getDesignDocName() {
-        return findCouchApp();
-    }
-
     protected String getAttachmentPath() {
         return DEFAULT_ATTACHMENT;
-    }
-
-    protected String getCouchAppURL(String host, int port) {
-        return "http://" + host + ":" + port + "/" + getDatabaseName() + "/_design/" + getDesignDocName() + getAttachmentPath();
-    }
-
-    protected String getWelcomeAppURL(String host, int port) {
-        return "http://" + host + ":" + port + "/" + WELCOME_DATABASE + "/_design/" + WELCOME_DATABASE + DEFAULT_ATTACHMENT;
     }
 
     protected void couchbaseStarted(String host, int port) {
@@ -140,6 +134,7 @@ public class AndroidCouchbaseCallback extends DroidGap
             setIntegerProperty("splashscreen", getSplashScreenDrawable());
             //loadUrl("file:///android_asset/www/error.html", 60000);
         }
+        //loadUrl("file:///android_asset/www/index.html");
 
         // increase the default timeout
         super.setIntegerProperty("loadUrlTimeoutValue", 90000);
@@ -174,10 +169,11 @@ public class AndroidCouchbaseCallback extends DroidGap
         Log.d(TAG, ipAddress);
 		String host = ipAddress;
 		int port = 8888;
-		String url = "http://" + host + ":" + Integer.toString(port) + "/";
+		url = "http://" + host + ":" + Integer.toString(port) + "/";
 		
         uiHandler = new Handler();
-        String appDb = properties.getProperty("app_db");
+        appDb = properties.getProperty("app_db");
+        couchAppInstanceUrl = properties.getProperty("couchAppInstanceUrl");
 	    File destination = new File(filesDir + File.separator + appDb + TOUCHDB_DATABASE_SUFFIX);
 	    String masterServer = properties.getProperty("master_server");
 	    if (masterServer != null) {
@@ -194,6 +190,7 @@ public class AndroidCouchbaseCallback extends DroidGap
 	    if (syncpointDefaultChannelName != null) {
 	    	Constants.syncpointDefaultChannelName = syncpointDefaultChannelName;
 	    }
+	    //setContentView(R.layout.receive_result);
 	    //TDDatabase db = server.getDatabaseNamed(appDb);
 	    Log.d(TAG, "Checking for touchdb at " + filesDir + File.separator + appDb + TOUCHDB_DATABASE_SUFFIX);
 	    if (!destination.exists()) {
@@ -219,138 +216,83 @@ public class AndroidCouchbaseCallback extends DroidGap
 				AndroidCouchbaseCallback.this.loadUrl(url);
 			}
 	    } else {
-	    	Log.d(TAG, "Touchdb exists. Loading WebView.");	    	
+	    	Log.d(TAG, "Touchdb exists. Checking Syncpoint status.");	    	
 	    }
 	    
     	/** Syncpoint	**/
-	    
-        /*Map<String, Object> documentProperties = new HashMap<String, Object>();
-        //documentProperties.put("_id", sessID);
-        TDBody body = new TDBody(documentProperties);
-    	syncpoint = new SyncpointClient(body,getContext());*/
-    	URL masterServerUrl = null;
+		// create the syncpoint client
 		try {
-			masterServerUrl = new URL(masterServer);
-		} catch (MalformedURLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-    	//syncpoint.init(server, masterServerUrl, syncpointAppId);
-    	
-    	// create the syncpoint client
-         try {
+	    	URL masterServerUrl = null;
+			try {
+				masterServerUrl = new URL(masterServer);
+			} catch (MalformedURLException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 			syncpoint = new SyncpointClientImpl(getApplicationContext(), masterServerUrl, Constants.syncpointAppId);
 			SyncpointChannel channel = syncpoint.getMyChannel(syncpointDefaultChannelName);
 			SyncpointInstallation inst = channel.getInstallation(getApplicationContext());
-	        if(inst != null) {
-	        	CouchDbConnector localDatabase = inst.getLocalDatabase(getApplicationContext());
-	        	String localDatabaseName = localDatabase.getDatabaseName();
-	        	Log.v(TAG, "localDatabaseName: " + localDatabaseName);
-	        	//TDDatabase origDb = server.getDatabaseNamed(appDb);
-	        	//origDb.open();
-	        	newDb = server.getDatabaseNamed(localDatabaseName);
-	        	newDb.open();
-	        	
-	        	long designDocId = newDb.getDocNumericID("_design/couchabb");
-	        	
-	        	if (designDocId < 1) {
-	        		/*Map<String,Object> ddocViewTest = new HashMap<String,Object>();
-		        	ddocViewTest.put("map", "function(doc) { if(doc.message) { emit(doc.message, 1); } }");
+			if(inst != null) {
+				CouchDbConnector localDatabase = inst.getLocalDatabase(getApplicationContext());
+				String localDatabaseName = localDatabase.getDatabaseName();
+				Log.v(TAG, "localDatabaseName: " + localDatabaseName);
+				//TDDatabase origDb = server.getDatabaseNamed(appDb);
+				//origDb.open();
+				newDb = server.getDatabaseNamed(localDatabaseName);
+				newDb.open();
 
-		        	Map<String,Object> ddocViews = new HashMap<String,Object>();
-		        	ddocViews.put("test", ddocViewTest);
+				long designDocId = newDb.getDocNumericID("_design/couchabb");
 
-		        	Map<String,Object> ddoc = new HashMap<String,Object>();
-		        	ddoc.put("views", ddocViews);
-		        	Map<String,Object> ddocresult = (Map<String,Object>)sendBody(server, "PUT", "/db/_design/doc", ddoc, TDStatus.CREATED, null);*/
-		             
-		             
-		        	/*List<TDView> views = origDb.getAllViews();
-		        	for (TDView tdView : views) {
-		        		//TDView origView = origDb.getExistingViewNamed("aview");
-		        		String viewName = tdView.getName();
-			        	TDViewMapBlock mapBlock = tdView.getMapBlock();
-			        	TDView newView = newDb.getViewNamed("_design/" + viewName);
-			        	newView.setMapReduceBlocks(mapBlock, null, "1");
-					}*/
-		        	
-		        	URL localCouchappUrl = null;
+				if (designDocId < 1) {
+					/*URL localCouchappUrl = null;
 					try {
 						localCouchappUrl = new URL(url + appDb);
 					} catch (MalformedURLException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
-		        	TDReplicator replPull = newDb.getReplicator(localCouchappUrl, false, false);
-		        	replPull.start();
-		        	
-		        	//origDb.close();
-		        	//newDb.close();
-	        	} else {
-	        		localSyncpointDbName = localDatabaseName;
-	        	}
-	        }
+					TDReplicator replPull = newDb.getReplicator(localCouchappUrl, false, false);
+					replPull.start();*/
+				    // show signup progress indicator
+					startSignupProcessActivity();
+				} else {
+					localSyncpointDbName = localDatabaseName;
+					String couchAppUrl = url + appDb + "/" + properties.getProperty("couchAppInstanceUrl");
+				    if (newDb != null) {
+				    	couchAppUrl = url + localSyncpointDbName + "/" + properties.getProperty("couchAppInstanceUrl");
+				    }
+				    Log.d( TAG, "Loading couchAppUrl: " + couchAppUrl );
+				    AndroidCouchbaseCallback.this.loadUrl(couchAppUrl);
+				}
+			} else {
+				startAccountSelector();
+			}
 		} catch (DbAccessException e1) {
 			Log.e( TAG, "Error: " , e1);
 			e1.printStackTrace();
 			Toast.makeText(this, "Error: Unable to connect to Syncpoint Server: " + e1.getMessage(), Toast.LENGTH_LONG).show();
 		}
-    	
-    	// If REPLICATION_SERVER_URL is still null, don't configure C2DM or replication.	
-    	if (Constants.replicationURL != null) {
-    		try {
-//				TDDatabase db = server.getDatabaseNamed(appDb);
-//				db.open();
-//				URL remote = null;
-//				try {
-//					remote = new URL(Constants.replicationURL);
-//				} catch (MalformedURLException e) {
-//					// TODO Auto-generated catch block
-//					e.printStackTrace();
-//				}
-//				TDReplicator replPull = db.getReplicator(remote, false, true);
-//				replPull.start();
-//				TDReplicator replPush = db.getReplicator(remote, true, true);
-//				replPush.start();
-			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-    	}
-	    String couchAppUrl = url + appDb + "/" + properties.getProperty("couchAppInstanceUrl");
-	    if (newDb != null) {
-	    	couchAppUrl = url + localSyncpointDbName + "/" + properties.getProperty("couchAppInstanceUrl");
-	    }
-	    Log.d( TAG, "Loading couchAppUrl: " + couchAppUrl );
-	    AndroidCouchbaseCallback.this.loadUrl(couchAppUrl);
+		//setContentView(R.layout.receive_result);
     }
 
-    /**
-     * Look for the first .couch file that is not named "welcome.couch"
-     * that can be found in the assets folder
-     *
-     * @return the name of the database (without the .couch extension)
-     * @throws IOException
-     */
-    public String findCouchApp() {
-        String result = null;
-        AssetManager assetManager = getAssets();
-        String[] assets = null;
-        try {
-            assets = assetManager.list("");
-        } catch (IOException e) {
-            Log.e(TAG, "Error listing assets", e);
-        }
-        if(assets != null) {
-            for (String asset : assets) {
-                if(!asset.startsWith(WELCOME_DATABASE) && asset.endsWith(COUCHBASE_DATABASE_SUFFIX)) {
-                    result = asset.substring(0, asset.length() - COUCHBASE_DATABASE_SUFFIX.length());
-                    break;
-                }
-            }
-        }
-        return result;
-    }
+	public void startAccountSelector() {
+		Log.i(TAG, "startAccountSelector");
+		Intent i = new Intent();
+		i.setClassName( 
+		    "com.couchbase.callback",
+		    "com.couchbase.callback.AccountSelector" );
+		startActivityForResult(i, ACTIVITY_ACCOUNTS );
+	}
+	
+	public void startSignupProcessActivity() {
+		Log.i(TAG, "startSignupProcessActivity");
+		Intent i = new Intent();
+		i.setClassName( 
+				"com.couchbase.callback",
+				"com.couchbase.callback.SignupProcessActivity" );
+		startActivityForResult(i, SIGNUP_PROCESS );
+	}
+
 
     @Override
     protected void onActivityResult( int requestCode,
@@ -360,11 +302,14 @@ public class AndroidCouchbaseCallback extends DroidGap
         switch(requestCode) {
         case ACTIVITY_ACCOUNTS: {
         	if (resultCode == RESULT_OK) {
+        		//startSignupProcessActivity();
         		String accountName = extras.getStringExtra( "account" );
         		selectedAccount = getAccountFromAccountName( accountName );
         		Toast.makeText(this, "Account selected: "+accountName, Toast.LENGTH_SHORT).show();
-        		if( selectedAccount != null )
+        		if( selectedAccount != null ) {
         			register();
+            		//startSignupProcessActivity();
+        		}	
         	} 
         }
         break;
@@ -383,11 +328,7 @@ public class AndroidCouchbaseCallback extends DroidGap
     public boolean onOptionsItemSelected( MenuItem item ) {
         switch ( item.getItemId() ) {
             case MENU_ACCOUNTS: {
-                    Intent i = new Intent();
-                    i.setClassName( 
-                        "com.couchbase.callback",
-                        "com.couchbase.callback.AccountSelector" );
-                    startActivityForResult(i, ACTIVITY_ACCOUNTS );
+                    startAccountSelector();
                     return true;
                 }
 //            case COPY_TEXT: {
@@ -426,11 +367,11 @@ public class AndroidCouchbaseCallback extends DroidGap
 			    	HttpClient httpClient = new TouchDBHttpClient(server);
 			    	CouchDbInstance localServer = new StdCouchDbInstance(httpClient);  	
 			    	//CouchDbConnector userDb = localServer.createConnector("_users", false);
-			    	CouchDbConnector localControlDatabase = localServer.createConnector(SyncpointClientImpl.LOCAL_CONTROL_DATABASE_NAME, false);
+			    	CouchDbConnector localControlDatabase = localServer.createConnector(SyncpointClientImpl.LOCAL_CONTROL_DATABASE_NAME, false);			    	
 			    	//PairingUser pairingUser = session.getPairingUser();
 					//PairingUser result = userDb.get(PairingUser.class, pairingUser.getId());
 					//waitForPairingToComplete(localServer, localControlDatabase);
-			    	pairingDidComplete(localServer);
+			    	setupLocalSyncpointDatabase(localServer);
 				} catch (DbAccessException e) {
 					Log.e( TAG, "Error: " , e);
 					Toast.makeText(this, "Error: Unable to connect to Syncpoint Server: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -447,7 +388,7 @@ public class AndroidCouchbaseCallback extends DroidGap
 		}
 	}
 	
-	 void waitForPairingToComplete(final CouchDbInstance localServer, final CouchDbConnector localControlDatabase) {
+	 /*void waitForPairingToComplete(final CouchDbInstance localServer, final CouchDbConnector localControlDatabase) {
 	        Log.v(TAG, "Waiting for pairing to complete...");
 	        Looper l = Looper.getMainLooper();
 	        Handler h = new Handler(l);
@@ -467,7 +408,7 @@ public class AndroidCouchbaseCallback extends DroidGap
 	                    Log.v(TAG, message);
 	                    waitForPairingToComplete(localServer, localControlDatabase);
 	                }
-	                /*PairingUser user = remote.get(PairingUser.class, userDoc.getId());
+	                PairingUser user = remote.get(PairingUser.class, userDoc.getId());
 	                if("paired".equals(user.getPairingState())) {
 	                    pairingDidComplete(localServer);
 	                } else {
@@ -475,30 +416,140 @@ public class AndroidCouchbaseCallback extends DroidGap
 		            	Toast.makeText(getApplicationContext(), message, Toast.LENGTH_SHORT).show();
 	                    Log.v(TAG, message);
 	                    waitForPairingToComplete(localServer, session, remote, user);
-	                }*/
+	                }
 	            }
 	        }, 3000);
-	    }
+	    }*/
 	    
-	 void pairingDidComplete(final CouchDbInstance localServer) {
+	 void setupLocalSyncpointDatabase(final CouchDbInstance localServer) {
 		 //CouchDbConnector localControlDatabase = localServer.createConnector(SyncpointClientImpl.LOCAL_CONTROL_DATABASE_NAME, false);
 		 //SyncpointSession session = SyncpointSession.sessionInDatabase(getApplicationContext(), localServer, localControlDatabase);
 		 //if(session != null) {
 		 //if(session.isPaired()) {
 		 
-		 String message = "Authorization Completed";
+		 String message = "Installing local profile.";
 		 Toast.makeText(getApplicationContext(), message, Toast.LENGTH_LONG).show();
 		 Log.v(TAG, message);
 		 SyncpointChannel channel = syncpoint.getMyChannel(Constants.syncpointDefaultChannelName);
-		 CouchDbConnector database = channel.ensureLocalDatabase(getApplicationContext());
+		 CouchDbConnector localDatabase = channel.ensureLocalDatabase(getApplicationContext());
+		 
+		 final String localDatabaseName = localDatabase.getDatabaseName();
+		 Log.v(TAG, "localDatabaseName: " + localDatabaseName);
+		 //TDDatabase origDb = server.getDatabaseNamed(appDb);
+		 //origDb.open();
+		 newDb = server.getDatabaseNamed(localDatabaseName);
+		 newDb.open();
+
+		 URL localCouchappUrl = null;
+		 try {
+			 localCouchappUrl = new URL(url + appDb);
+		 } catch (MalformedURLException e) {
+			 // TODO Auto-generated catch block
+			 e.printStackTrace();
+		 }
+		 TDReplicator replPull = newDb.getReplicator(localCouchappUrl, false, false);
+		 replPull.start();
+		 
+		 boolean activeReplication = true;
+		 while (activeReplication == true) {
+			 List<TDReplicator> activeReplicators = newDb.getActiveReplicators();
+			 int i = 0;
+			 if(activeReplicators != null) {
+				 for (TDReplicator replicator : activeReplicators) {
+					 String source = replicator.getRemote().toExternalForm();
+					 Log.v(TAG, "remote " + source);
+					 if (source.equals(localCouchappUrl.toExternalForm())) {
+						 if (replicator.isRunning() == true) {
+							 try {
+								 i++;
+								 Thread.sleep(1000);
+							 } catch (InterruptedException e) {
+								 // TODO Auto-generated catch block
+								 e.printStackTrace();
+							 }
+						 }
+					 }
+				 }
+			 }
+			 if (i == 0) {
+				 activeReplication = false;
+			 }
+		 }
+		 /*Observer observer = new Observer() {
+
+			 @Override
+			 public void update(Observable observable, Object data) {
+				 Log.v(TAG, "Waiting for replicator to finish ");
+				 replicationChangesProcessed = replPull.getChangesProcessed();
+				 //if (observable == replPull) {
+					 if (!replPull.isRunning()) {
+						 launchCouchAppView(localDatabaseName, replPull);
+					 }
+				 //}
+			 }
+		 };
+		 replPull.addObserver(observer);*/
+		 
+		 /*int replicationChangesTotal = replPull.getChangesTotal();
+		 
+		 while(replicationChangesProcessed > replicationChangesTotal) {
+			 Log.i(TAG, "Waiting for replicator to finish");
+			 try {
+				 Thread.sleep(1000);
+			 } catch (InterruptedException e) {
+				 // TODO Auto-generated catch block
+				 e.printStackTrace();
+			 }
+		 }*/
+		 
+		 /*Thread t1 = new Thread() {
+			 public void run() {
+				 replPull.start();
+			 }
+		 };
+
+		 t1.start();*/
+		 
+		 
+
+		 /*while(replPull.isRunning()) {
+			 Log.i(TAG, "Waiting for replicator to finish");
+			 try {
+				 Thread.sleep(1000);
+			 } catch (InterruptedException e) {
+				 // TODO Auto-generated catch block
+				 e.printStackTrace();
+			 }
+		 }*/
+
+		 launchCouchAppView(localDatabaseName);
+		
+		/* 
 		 // create a sample document to verify that replication in the channel is working
 		 Map<String,Object> testObject = new HashMap<String,Object>();
 		 testObject.put("key", "value");
 		 // store the document
-		 database.create(testObject);
+		 localDatabase.create(testObject);*/
 		 //}
 		 //}
 	 }
+
+	public void launchCouchAppView(String localDatabaseName) {
+		Log.i(TAG, "launchCouchAppView");
+		try {
+			Thread.sleep(2*1000);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	    localSyncpointDbName = localDatabaseName;
+		String couchAppUrl = url + appDb + "/" + couchAppInstanceUrl;
+	    if (newDb != null) {
+	    	couchAppUrl = url + localSyncpointDbName + "/" + couchAppInstanceUrl;
+	    }
+	    Log.d( TAG, "Loading couchAppUrl: " + couchAppUrl );
+	    AndroidCouchbaseCallback.this.loadUrl(couchAppUrl);
+	}
 	
     // kudos: http://stackoverflow.com/questions/6058843/android-how-to-select-texts-from-webview    
     private void emulateShiftHeld(WebView view)
