@@ -1,6 +1,6 @@
 package com.docomoinnovations.couchbase.photoshare;
 
-import com.couchbase.callback.AndroidCouchbaseCallback;
+import com.example.android.actionbarcompat.AndroidCouchbaseCallback;
 
 /**
  * This is the main activity for your application.

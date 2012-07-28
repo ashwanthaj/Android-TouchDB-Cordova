@@ -11,4 +11,10 @@
     <string name="label_signup_pending">Signup is pending.</string>
     <string name="receive_result_instructions">Signup is pending; please wait or contact your administrator.</string>
     <string name="receive_result_result">Get Result</string>
+    <string name="alternate_title">An alternate title that is long</string>
+    <string name="toggle_title">Toggle title</string>
+
+    <string name="menu_refresh">Refresh</string>
+    <string name="menu_search">Search</string>
+    <string name="menu_share">Share</string>
 </resources>

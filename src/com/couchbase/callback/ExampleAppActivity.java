@@ -1,5 +1,7 @@
 package com.couchbase.callback;
 
+import com.example.android.actionbarcompat.AndroidCouchbaseCallback;
+
 /**
  * This is the main activity for your application.
  *

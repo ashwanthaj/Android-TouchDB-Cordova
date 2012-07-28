@@ -14,11 +14,10 @@
   limitations under the License.
   -->
 
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="fill_parent"
-    android:layout_height="fill_parent">
-    <org.apache.cordova.CordovaWebView 
-        android:layout_width="fill_parent"
-        android:layout_height="fill_parent" 
-        android:id = "@+id/mainView"/>
-</FrameLayout>
+<resources>
+    <item type="id" name="actionbar_compat" />
+    <item type="id" name="actionbar_compat_title" />
+    <item type="id" name="actionbar_compat_item_refresh_progress" />
+    <item type="id" name="actionbar_compat_item_refresh" />
+    <item type="id" name="menu_refresh" />
+</resources>

@@ -1,4 +1,4 @@
-package com.couchbase.callback;
+package com.example.android.actionbarcompat;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;

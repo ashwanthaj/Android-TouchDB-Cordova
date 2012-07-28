@@ -13,7 +13,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-package com.couchbase.callback;
+package com.example.android.actionbarcompat;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -61,6 +61,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.couchbase.callback.Constants;
 import com.couchbase.syncpoint.SyncpointClient;
 import com.couchbase.syncpoint.impl.SyncpointClientImpl;
 import com.couchbase.syncpoint.model.SyncpointChannel;
