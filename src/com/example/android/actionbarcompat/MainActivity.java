@@ -110,6 +110,7 @@ public class MainActivity extends ActionBarActivity implements CordovaInterface{
         setContentView(R.layout.main);
         
         mainView =  (CordovaWebView) findViewById(R.id.mainView);
+        mainView.loadUrl("file:///android_asset/www/processing.html");
         //mainView.loadUrl("file:///android_asset/www/index.html");
         
         String filesDir = getFilesDir().getAbsolutePath();
@@ -186,13 +187,15 @@ public class MainActivity extends ActionBarActivity implements CordovaInterface{
 				Log.d(TAG, errorMessage);
 				progressDialog.setMessage(errorMessage);
 				//this.setCouchAppUrl("/");
+		        //setContentView(R.layout.main);
+		        //mainView =  (CordovaWebView) findViewById(R.id.mainView);
 				mainView.loadUrl("file:///android_asset/www/error.html");
 			}
 	    } else {
 	    	Log.d(TAG, "Touchdb exists. Checking Syncpoint status.");	    	
 	    }
-	    
-	    /** Syncpoint	**/
+	    /*
+	    //** Syncpoint	**//*
 		// create the syncpoint client
 		try {
 	    	URL masterServerUrl = null;
@@ -217,7 +220,7 @@ public class MainActivity extends ActionBarActivity implements CordovaInterface{
 				long designDocId = newDb.getDocNumericID("_design/couchabb");
 
 				if (designDocId < 1) {
-					/*URL localCouchappUrl = null;
+					URL localCouchappUrl = null;
 					try {
 						localCouchappUrl = new URL(url + appDb);
 					} catch (MalformedURLException e) {
@@ -225,7 +228,7 @@ public class MainActivity extends ActionBarActivity implements CordovaInterface{
 						e.printStackTrace();
 					}
 					TDReplicator replPull = newDb.getReplicator(localCouchappUrl, false, false);
-					replPull.start();*/
+					replPull.start();
 				    // show signup progress indicator
 					startSignupProcessActivity();
 				} else {
@@ -236,6 +239,8 @@ public class MainActivity extends ActionBarActivity implements CordovaInterface{
 				    }
 				    Log.d( TAG, "Loading couchAppUrl: " + couchAppUrl );
 				    //AndroidCouchbaseCallback.this.loadUrl(couchAppUrl);
+				    //setContentView(R.layout.main);
+			        //mainView =  (CordovaWebView) findViewById(R.id.mainView);
 				    mainView.loadUrl(couchAppUrl);
 				}
 			} else {
@@ -246,7 +251,7 @@ public class MainActivity extends ActionBarActivity implements CordovaInterface{
 			e1.printStackTrace();
 			Toast.makeText(this, "Error: Unable to connect to Syncpoint Server: " + e1.getMessage(), Toast.LENGTH_LONG).show();
 		}
-
+*/
 /*
         findViewById(R.id.toggle_title).setOnClickListener(new View.OnClickListener() {
             @Override
@@ -269,6 +274,8 @@ public class MainActivity extends ActionBarActivity implements CordovaInterface{
 		    "com.example.android.actionbarcompat",
 		    "com.example.android.actionbarcompat.AccountSelector" );
 		startActivityForResult(i, ACTIVITY_ACCOUNTS );*/
+		setContentView(R.layout.main);
+        mainView =  (CordovaWebView) findViewById(R.id.mainView);
 		mainView.loadUrl("file:///android_asset/www/accounts.html");
 	}
 	
@@ -622,31 +629,32 @@ public class MainActivity extends ActionBarActivity implements CordovaInterface{
 	}
     
     public void register() {
-		if( registered )
-			unregister();
-		else {
-			Log.d( TAG, "register()" );
-			//C2DMessaging.register( this, C2DM_SENDER );
-			//syncpoint.pairSessionWithType("console", selectedAccount.name);
-			if (selectedAccount != null) {
-				try {
-					syncpoint.pairSession("console", selectedAccount.name);
-			    	HttpClient httpClient = new TouchDBHttpClient(server);
-			    	CouchDbInstance localServer = new StdCouchDbInstance(httpClient);  	
-			    	//CouchDbConnector userDb = localServer.createConnector("_users", false);
-			    	CouchDbConnector localControlDatabase = localServer.createConnector(SyncpointClientImpl.LOCAL_CONTROL_DATABASE_NAME, false);			    	
-			    	//PairingUser pairingUser = session.getPairingUser();
-					//PairingUser result = userDb.get(PairingUser.class, pairingUser.getId());
-					//waitForPairingToComplete(localServer, localControlDatabase);
-			    	setupLocalSyncpointDatabase(localServer);
-				} catch (DbAccessException e) {
-					Log.e( TAG, "Error: " , e);
-					Toast.makeText(this, "Error: Unable to connect to Syncpoint Server: " + e.getMessage(), Toast.LENGTH_LONG).show();
-				}
-				Log.d( TAG, "register() done" );
-			}
-		}
-	}
+    	if( registered )
+    		unregister();
+    	else {
+    		Log.d( TAG, "register()" );
+    		//C2DMessaging.register( this, C2DM_SENDER );
+    		//syncpoint.pairSessionWithType("console", selectedAccount.name);
+    		if (selectedAccount != null) {
+    			try {
+    				syncpoint.pairSession("console", selectedAccount.name);
+    				HttpClient httpClient = new TouchDBHttpClient(server);
+    				CouchDbInstance localServer = new StdCouchDbInstance(httpClient);  	
+    				//CouchDbConnector userDb = localServer.createConnector("_users", false);
+    				CouchDbConnector localControlDatabase = localServer.createConnector(SyncpointClientImpl.LOCAL_CONTROL_DATABASE_NAME, false);			    	
+    				//PairingUser pairingUser = session.getPairingUser();
+    				//PairingUser result = userDb.get(PairingUser.class, pairingUser.getId());
+    				//waitForPairingToComplete(localServer, localControlDatabase);
+    				setupLocalSyncpointDatabase(localServer);
+    			} catch (DbAccessException e) {
+    				Log.e( TAG, "Error: " , e);
+    				Toast.makeText(this, "Error: Unable to connect to Syncpoint Server: " + e.getMessage(), Toast.LENGTH_LONG).show();
+    			}
+    			Log.d( TAG, "register() done" );
+    		}
+    	}
+    }
+    
 	private void unregister() {
 		if( registered ) {
 			Log.d( TAG, "unregister()" );

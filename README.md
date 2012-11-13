@@ -1,4 +1,4 @@
-## Android Couchbase Callback
+## Android-TouchDB-Cordova
 
 This app is a demonstration of the [TodoMVC backbone-require](https://github.com/addyosmani/todomvc/tree/master/dependency-examples/backbone_require) 
 app, which has been modified to work as a [Backbone boilerplate](https://github.com/tbranyen/backbone-boilerplate) project. 
